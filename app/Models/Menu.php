@@ -15,6 +15,7 @@ class Menu extends Model
     protected $casts = [
         'menu_date' => 'date',
         'published_at' => 'datetime',
+        'cutoff_time' => 'datetime:H:i',
     ];
 
     public function items(): HasMany
