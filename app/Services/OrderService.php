@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\OrderPlaced;
 use App\Http\Requests\Api\PlaceOrderRequest;
 use App\Models\Customer;
 use App\Models\Order;
@@ -60,6 +61,9 @@ class OrderService
             $order = $this->syncItems($order, $request->validated('items'), $menuItems);
 
             $this->recordAudit($order, OrderUpdate::ACTION_PLACED, ['items' => $request->validated('items')]);
+
+            // Confirmation email fires only once placement is committed.
+            DB::afterCommit(fn () => OrderPlaced::dispatch($order));
 
             return $order->refresh();
         });

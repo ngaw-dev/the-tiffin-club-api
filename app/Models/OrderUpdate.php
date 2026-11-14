@@ -16,11 +16,17 @@ class OrderUpdate extends Model
 
     public const ACTOR_STAFF = 'staff';
 
+    public const ACTOR_SYSTEM = 'system';
+
     public const ACTION_PLACED = 'placed';
 
     public const ACTION_EDITED = 'edited';
 
     public const ACTION_CANCELLED = 'cancelled';
+
+    public const ACTION_CONFIRMATION_SENT = 'confirmation_sent';
+
+    public const ACTION_CONFIRMATION_SKIPPED = 'confirmation_skipped';
 
     protected $fillable = [
         'order_id',

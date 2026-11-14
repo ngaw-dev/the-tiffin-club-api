@@ -69,7 +69,7 @@ it('edits an order in place until cutoff and appends to the audit trail', functi
         ->assertJsonPath('data.total', 3600)
         ->assertJsonPath('data.items.0.quantity', 2);
 
-    expect(Order::where('manage_token', $token)->first()->audits)->toHaveCount(2); // placed + edited
+    expect(Order::where('manage_token', $token)->first()->audits)->toHaveCount(3); // placed + confirmation_sent + edited
 });
 
 it('cannot edit an order after cutoff', function () {

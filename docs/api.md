@@ -157,6 +157,10 @@ Rules:
 - `suburb` — required when `fulfilment=delivery`; must be in `delivery_suburbs` from `GET /settings`.
 - `items.*.id` — must exist on **today's** menu; `quantity` 1–20.
 
+Side effects:
+
+- Customers with an email are sent a **confirmation email** (queued, async): order summary, fulfilment details, and the manage deep link. Phone-only customers receive nothing — both outcomes are appended to the order's internal audit trail.
+
 Errors:
 
 - `422` with `items.*.id` / `suburb` / `email` / `phone` / `ordering` (`"The ordering window is closed."`).
