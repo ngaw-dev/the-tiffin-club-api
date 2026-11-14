@@ -4,9 +4,9 @@
 
 **Blocked by:** 03 (Place an order).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Register/login with email + password; token-based auth
-- [ ] `GET /api/v1/account/orders` lists orders linked by email match, including pre-account guest orders
-- [ ] Prefill details endpoint returns most recent order's contact/fulfilment details
-- [ ] Ordering stays guest-first: no account required anywhere
+- [x] Register/login with email + password; token-based auth
+- [x] `GET /api/v1/account/orders` lists orders linked by email match, including pre-account guest orders
+- [x] Prefill details endpoint returns most recent order's contact/fulfilment details
+- [x] Ordering stays guest-first: no account required anywhere

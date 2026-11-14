@@ -44,7 +44,7 @@ class OrderService
                 'status' => Order::STATUS_PLACED,
                 'fulfilment' => $request->validated('fulfilment'),
                 'name' => $request->validated('name'),
-                'email' => $request->validated('email'),
+                'email' => strtolower($request->validated('email')),
                 'phone' => $request->validated('phone'),
                 'address' => $request->validated('address'),
                 'suburb' => $request->validated('suburb'),

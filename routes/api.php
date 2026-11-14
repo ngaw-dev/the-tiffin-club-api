@@ -12,8 +12,8 @@ Route::prefix('v1')->group(function () {
     Route::patch('/orders/{token}', [OrderController::class, 'update'])->name('orders.update');
     Route::delete('/orders/{token}', [OrderController::class, 'destroy'])->name('orders.destroy');
 
-    Route::post('/account/register', [AccountController::class, 'register'])->name('account.register');
-    Route::post('/account/login', [AccountController::class, 'login'])->name('account.login');
+    Route::post('/account/register', [AccountController::class, 'register'])->middleware('throttle:10,1')->name('account.register');
+    Route::post('/account/login', [AccountController::class, 'login'])->middleware('throttle:10,1')->name('account.login');
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/account/orders', [AccountController::class, 'orders'])->name('account.orders');
         Route::get('/account/prefill', [AccountController::class, 'prefill'])->name('account.prefill');

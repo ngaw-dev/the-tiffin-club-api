@@ -25,13 +25,15 @@ class AccountController extends Controller
     {
         $user = User::create([
             'name' => explode('@', $request->validated('email'))[0],
-            'email' => $request->validated('email'),
+            'email' => strtolower($request->validated('email')),
             'password' => $request->validated('password'),
         ]);
 
-        return $this->successResponse([
-            'token' => $user->createToken('account')->plainTextToken,
-        ], 'Welcome — your account is ready', 201);
+        return $this->successResponse(
+            $this->tokenPayload($user),
+            'Welcome — your account is ready',
+            201,
+        );
     }
 
     /**
@@ -39,7 +41,7 @@ class AccountController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::where('email', $request->validated('email'))->first();
+        $user = User::where('email', strtolower($request->validated('email')))->first();
 
         if ($user === null || ! Hash::check($request->validated('password'), $user->password)) {
             throw ValidationException::withMessages([
@@ -47,9 +49,7 @@ class AccountController extends Controller
             ]);
         }
 
-        return $this->successResponse([
-            'token' => $user->createToken('account')->plainTextToken,
-        ], 'Welcome back');
+        return $this->successResponse($this->tokenPayload($user), 'Welcome back');
     }
 
     /**
@@ -58,13 +58,10 @@ class AccountController extends Controller
      */
     public function orders(Request $request): JsonResponse
     {
-        $orders = Order::query()
-            ->with('items.menuItem')
-            ->where('email', $request->user()->email)
-            ->orderByDesc('placed_at')
-            ->get();
-
-        return $this->successResponse(OrderResource::collection($orders), 'Here are your orders');
+        return $this->successResponse(
+            OrderResource::collection($this->ordersFor($request->user())->with('items.menuItem')->get()),
+            'Here are your orders',
+        );
     }
 
     /**
@@ -72,10 +69,7 @@ class AccountController extends Controller
      */
     public function prefill(Request $request): JsonResponse
     {
-        $latest = Order::query()
-            ->where('email', $request->user()->email)
-            ->orderByDesc('placed_at')
-            ->first();
+        $latest = $this->ordersFor($request->user())->first();
 
         return $this->successResponse([
             'name' => $latest?->name,
@@ -84,5 +78,25 @@ class AccountController extends Controller
             'address' => $latest?->address,
             'suburb' => $latest?->suburb,
         ], 'Here are your details');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tokenPayload(User $user): array
+    {
+        return ['token' => $user->createToken('account')->plainTextToken];
+    }
+
+    /**
+     * Base query for the account's email-matched orders, newest first
+     * (id as a stable tie-breaker).
+     */
+    private function ordersFor(User $user)
+    {
+        return Order::query()
+            ->where('email', $user->email)
+            ->orderByDesc('placed_at')
+            ->orderByDesc('id');
     }
 }
