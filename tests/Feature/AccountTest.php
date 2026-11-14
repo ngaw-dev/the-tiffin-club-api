@@ -14,7 +14,7 @@ use function Pest\Laravel\postJson;
 
 uses(RefreshDatabase::class);
 
-function orderFor(string $email): void
+function orderFor(string $email, string $phone = '0211234567'): void
 {
     Carbon::setTestNow(today(OrderingWindowService::TIMEZONE)->setTime(10, 0));
 
@@ -35,7 +35,7 @@ function orderFor(string $email): void
         'fulfilment' => 'delivery',
         'name' => 'Amol W',
         'email' => $email,
-        'phone' => '0211234567',
+        'phone' => $phone,
         'suburb' => 'Te Aro',
         'items' => [['id' => $main->id, 'quantity' => 1]],
     ])->assertCreated();
@@ -101,7 +101,7 @@ it('lists an account\'s orders including guest orders placed before the account 
 
 it('does not list other people\'s orders', function () {
     orderFor('amol@example.com');
-    orderFor('someone-else@example.com');
+    orderFor('someone-else@example.com', '0219999999');
 
     postJson('/api/v1/account/register', ['email' => 'amol@example.com', 'password' => 'super-secret-1']);
     $token = postJson('/api/v1/account/login', ['email' => 'amol@example.com', 'password' => 'super-secret-1'])->json('data.token');

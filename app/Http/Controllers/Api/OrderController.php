@@ -25,10 +25,8 @@ class OrderController extends Controller
      */
     public function store(PlaceOrderRequest $request): JsonResponse
     {
-        $order = $this->orders->place($request);
-
         return $this->successResponse(
-            new OrderResource($order->load('items.menuItem')),
+            new OrderResource($this->orders->place($request)->load('items.menuItem', 'customer')),
             'Order placed — pay in person',
             201,
         );
@@ -42,10 +40,11 @@ class OrderController extends Controller
         ));
     }
 
+
     public function update(UpdateOrderRequest $request, string $token): JsonResponse
     {
         return $this->withOrder($token, fn () => $this->successResponse(
-            new OrderResource($this->orders->update($this->orders->findByToken($token), $request->validated())->load('items.menuItem')),
+            new OrderResource($this->orders->update($this->orders->findByToken($token), $request->validated())->load('items.menuItem', 'customer')),
             'Order updated',
         ));
     }
@@ -53,7 +52,7 @@ class OrderController extends Controller
     public function destroy(Request $request, string $token): JsonResponse
     {
         return $this->withOrder($token, fn () => $this->successResponse(
-            new OrderResource($this->orders->cancel($this->orders->findByToken($token))->load('items.menuItem')),
+            new OrderResource($this->orders->cancel($this->orders->findByToken($token))->load('items.menuItem', 'customer')),
             'Order cancelled',
         ));
     }

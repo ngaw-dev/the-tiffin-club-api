@@ -53,13 +53,14 @@ class AccountController extends Controller
     }
 
     /**
-     * The account's orders, matched by email — including guest orders
-     * placed before the account existed.
+     * The account's orders — via the Customer whose email matches the
+     * account email, including guest orders placed before the account
+     * existed.
      */
     public function orders(Request $request): JsonResponse
     {
         return $this->successResponse(
-            OrderResource::collection($this->ordersFor($request->user())->with('items.menuItem')->get()),
+            OrderResource::collection($this->ordersFor($request->user())->with('items.menuItem', 'customer')->get()),
             'Here are your orders',
         );
     }
@@ -74,7 +75,7 @@ class AccountController extends Controller
         return $this->successResponse([
             'name' => $latest?->name,
             'email' => $request->user()->email,
-            'phone' => $latest?->phone,
+            'phone' => $latest?->customer?->phone,
             'address' => $latest?->address,
             'suburb' => $latest?->suburb,
         ], 'Here are your details');
@@ -89,13 +90,14 @@ class AccountController extends Controller
     }
 
     /**
-     * Base query for the account's email-matched orders, newest first
-     * (id as a stable tie-breaker).
+     * Base query for the account's orders, newest first (id as a
+     * stable tie-breaker), resolved through the email-matched
+     * customer.
      */
     private function ordersFor(User $user)
     {
         return Order::query()
-            ->where('email', $user->email)
+            ->whereHas('customer', fn ($q) => $q->where('email', $user->email))
             ->orderByDesc('placed_at')
             ->orderByDesc('id');
     }

@@ -29,13 +29,13 @@ class Order extends Model
 
     protected $fillable = [
         'menu_id',
+        'customer_id',
         'status',
         'fulfilment',
         'name',
-        'email',
-        'phone',
         'address',
         'suburb',
+        'delivery_notes',
         'placed_at',
         'expires_at',
     ];
@@ -45,6 +45,11 @@ class Order extends Model
         'placed_at' => 'datetime',
         'expires_at' => 'datetime',
     ];
+
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class);
+    }
 
     public function menu(): BelongsTo
     {

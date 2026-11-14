@@ -25,10 +25,9 @@ class UpdateOrderRequest extends FormRequest
         return [
             'fulfilment' => ['sometimes', Rule::in([Order::FULFILMENT_PICKUP, Order::FULFILMENT_DELIVERY])],
             'name' => ['sometimes', 'string', 'max:255'],
-            'email' => ['sometimes', 'email', 'max:255'],
-            'phone' => ['sometimes', 'nullable', 'string', 'max:32'],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'suburb' => ['sometimes', 'nullable', 'string', Rule::in(GlobalSetting::current()->delivery_suburbs)],
+            'delivery_notes' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.id' => ['required_with:items', 'integer'],
             'items.*.quantity' => ['required_with:items', 'integer', 'min:1', 'max:20'],

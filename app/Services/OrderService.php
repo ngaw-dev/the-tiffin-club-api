@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Http\Requests\Api\PlaceOrderRequest;
+use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderUpdate;
 use Illuminate\Support\Carbon;
@@ -38,15 +39,18 @@ class OrderService
         return DB::transaction(function () use ($request, $menu): Order {
             $menuItems = $menu->items->keyBy('id');
 
+            $customer = $this->resolveCustomer($request);
+
             $order = new Order;
             $order->fill([
                 'menu_id' => $menu->id,
+                'customer_id' => $customer->id,
                 'status' => Order::STATUS_PLACED,
                 'fulfilment' => $request->validated('fulfilment'),
                 'name' => $request->validated('name'),
-                'email' => strtolower((string) $request->validated('email')),                'phone' => $request->validated('phone'),
                 'address' => $request->validated('address'),
                 'suburb' => $request->validated('suburb'),
+                'delivery_notes' => $request->validated('delivery_notes'),
                 'placed_at' => now(),
                 'expires_at' => Carbon::today(OrderingWindowService::TIMEZONE)->setTime(23, 59, 59),
             ]);
@@ -59,6 +63,46 @@ class OrderService
 
             return $order->refresh();
         });
+    }
+
+    /**
+     * Find or create the customer for this order. Matched by email
+     * first, then phone — when both match different customers the
+     * email match wins. Address/suburb are remembered as defaults.
+     */
+    private function resolveCustomer(PlaceOrderRequest $request): Customer
+    {
+        $email = strtolower((string) $request->validated('email'));
+        $phone = preg_replace('/\D+/', '', (string) $request->validated('phone'));
+
+        $customer = null;
+
+        if ($email !== '') {
+            $customer = Customer::query()->where('email', $email)->first();
+        }
+
+        if ($customer === null && $phone !== '') {
+            $customer = Customer::query()->where('phone', $phone)->first();
+        }
+
+        if ($customer === null) {
+            $customer = new Customer;
+            $customer->name = $request->validated('name');
+            $customer->email = $email !== '' ? $email : null;
+            $customer->phone = $phone !== '' ? $phone : null;
+            $customer->save();
+        }
+
+        // Remember the latest delivery address as the customer default.
+        $address = $request->validated('address');
+        $suburb = $request->validated('suburb');
+        if ($address !== null && ($customer->address !== $address || $customer->suburb !== $suburb)) {
+            $customer->address = $address;
+            $customer->suburb = $suburb;
+            $customer->save();
+        }
+
+        return $customer;
     }
 
     /**
@@ -93,7 +137,7 @@ class OrderService
     public function lookup(string $token, ?string $email, ?string $phone): Order
     {
         $order = Order::query()
-            ->with(['items.menuItem'])
+            ->with(['items.menuItem', 'customer'])
             ->where('manage_token', $token)
             ->first();
 
@@ -101,10 +145,12 @@ class OrderService
             throw new OrderNotFound;
         }
 
-        $matchesEmail = $email !== null && $order->email !== null
-            && $order->email === strtolower($email);
-        $matchesPhone = $phone !== null && $order->phone !== null
-            && $order->phone === $phone;
+        $customer = $order->customer;
+
+        $matchesEmail = $email !== null && $customer->email !== null
+            && $customer->email === strtolower($email);
+        $matchesPhone = $phone !== null && $customer->phone !== null
+            && $customer->phone === preg_replace('/\D+/', '', $phone);
 
         if (! $matchesEmail && ! $matchesPhone) {
             throw new OrderNotFound;
@@ -135,7 +181,7 @@ class OrderService
         return DB::transaction(function () use ($order, $attributes): Order {
             $changes = [];
 
-            $detailFields = ['fulfilment', 'name', 'email', 'phone', 'address', 'suburb'];
+            $detailFields = ['fulfilment', 'name', 'address', 'suburb', 'delivery_notes'];
             foreach ($detailFields as $field) {
                 if (array_key_exists($field, $attributes) && $order->{$field} !== $attributes[$field]) {
                     $changes[$field] = ['from' => $order->{$field}, 'to' => $attributes[$field]];
