@@ -11,7 +11,6 @@
 - **Fulfilment Method**: Either pickup, or free delivery within the Wellington region (validated against the Delivery Suburb list). All zones are free.
 - **Pickup Window**: The informational start/end times during which pickup orders may be collected. Shown to the customer; not validated or enforced.
 - **Order Total**: The server-computed sum of mains and extras at menu prices. Shown to the customer, collected in person — never charged online.
-- **Contact Details**: Every order carries name plus at least one of email or phone.
 - **Order Lookup**: A knowledge-based check — the Manage Token plus the email or phone used at checkout — that returns the order only when the contact matches. Every failure (bad token, expired token, wrong contact) answers identically.
 - **Contact Details**: Every order is placed with a name plus at least one of email or phone; these identify the Customer. Email is stored lowercase, phone normalized.
 - **Customer**: The person placing orders. Identified by email or phone — at least one must be present, each unique when present. Carries the default delivery address. Found or created silently at checkout from the submitted contact details; when an order's email and phone match different customers, the email match wins.

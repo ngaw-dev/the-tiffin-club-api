@@ -72,17 +72,19 @@ class OrderService
      */
     private function resolveCustomer(PlaceOrderRequest $request): Customer
     {
-        $email = strtolower((string) $request->validated('email'));
-        $phone = preg_replace('/\D+/', '', (string) $request->validated('phone'));
+        $email = (string) $request->validated('email');
+        $phone = (string) $request->validated('phone');
 
+        // Mutators normalize (email lowercase, phone digits) so the
+        // lookups below compare in canonical form.
         $customer = null;
 
         if ($email !== '') {
-            $customer = Customer::query()->where('email', $email)->first();
+            $customer = Customer::query()->where('email', strtolower($email))->first();
         }
 
         if ($customer === null && $phone !== '') {
-            $customer = Customer::query()->where('phone', $phone)->first();
+            $customer = Customer::query()->where('phone', preg_replace('/\D+/', '', $phone))->first();
         }
 
         if ($customer === null) {
@@ -93,12 +95,14 @@ class OrderService
             $customer->save();
         }
 
-        // Remember the latest delivery address as the customer default.
-        $address = $request->validated('address');
-        $suburb = $request->validated('suburb');
-        if ($address !== null && ($customer->address !== $address || $customer->suburb !== $suburb)) {
-            $customer->address = $address;
-            $customer->suburb = $suburb;
+        // Remember the latest submitted address/suburb as the default.
+        foreach (['address', 'suburb'] as $field) {
+            $value = $request->validated($field);
+            if ($value !== null && $customer->{$field} !== $value) {
+                $customer->{$field} = $value;
+            }
+        }
+        if ($customer->isDirty()) {
             $customer->save();
         }
 
