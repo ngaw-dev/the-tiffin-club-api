@@ -13,21 +13,6 @@ class OrderingWindowService
     /** The store's opening hour each day. */
     public const OPENS_AT = '09:00';
 
-    public function __construct(
-        private readonly MenuService $menus,
-    ) {}
-
-    /**
-     * Ordering window for today's published menu, or null when there is
-     * no published menu today.
-     */
-    public function forToday(): ?OrderingWindow
-    {
-        $menu = $this->menus->todaysPublishedMenu();
-
-        return $menu === null ? null : $this->forMenu($menu);
-    }
-
     /**
      * Ordering window for a menu: opens at max(09:00, publish time);
      * closes at the menu's per-day cutoff, or the global default.

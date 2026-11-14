@@ -4,10 +4,10 @@
 
 **Blocked by:** 01 (Today's menu read path).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Window opens at max(09:00, publish time) — late-published menus open on publish
-- [ ] Per-day Cutoff Time with global fallback
-- [ ] "Closing soon" flag inside the last 60 minutes before cutoff
-- [ ] All time computed server-side in Pacific/Auckland; client clock never trusted
-- [ ] Unit tests cover midnight rollover, late publish, and fallback-cutoff edges
+- [x] Window opens at max(09:00, publish time) — late-published menus open on publish
+- [x] Per-day Cutoff Time with global fallback
+- [x] "Closing soon" flag inside the last 60 minutes before cutoff
+- [x] All time computed server-side in Pacific/Auckland; client clock never trusted
+- [x] Unit tests cover midnight rollover, late publish, and fallback-cutoff edges

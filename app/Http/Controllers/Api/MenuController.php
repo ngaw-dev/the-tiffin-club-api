@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MenuItemResource;
+use App\Http\Resources\OrderingWindowResource;
 use App\Models\MenuItem;
 use App\Services\MenuService;
 use App\Services\OrderingWindowService;
@@ -45,13 +46,7 @@ class MenuController extends Controller
             'date' => $menu->menu_date->toDateString(),
             'main' => new MenuItemResource($main),
             'extras' => MenuItemResource::collection($extras),
-            'ordering' => [
-                'state' => $window->state(),
-                'open' => $window->isOpen(),
-                'closing_soon' => $window->closingSoon(),
-                'opens_at' => $window->opensAt->format('H:i'),
-                'closes_at' => $window->closesAt->format('H:i'),
-            ],
+            'ordering' => new OrderingWindowResource($window),
         ], 'Here\'s today\'s menu');
     }
 }

@@ -2,7 +2,7 @@
 
 use App\Models\Menu;
 use App\Models\MenuItem;
-use App\Services\MenuService;
+use App\Services\OrderingWindowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 
@@ -16,7 +16,7 @@ test('customer can fetch today\'s published menu', function () {
         ->has(MenuItem::factory()->main(), 'items')
         ->has(MenuItem::factory()->count(2)->extra(), 'items')
         ->create([
-            'menu_date' => today(new DateTimeZone(MenuService::TIMEZONE)),
+            'menu_date' => today(new DateTimeZone(OrderingWindowService::TIMEZONE)),
         ]);
 
     $response = getJson('/api/v1/menu/today');
@@ -52,13 +52,13 @@ test('today\'s menu row exists but is unpublished returns coming soon', function
 });
 
 test('menu response exposes the ordering window so clients never compute time', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 10:30', 'Pacific/Auckland'));
+    Carbon::setTestNow(Carbon::parse('2026-11-14 10:30', OrderingWindowService::TIMEZONE));
 
     Menu::factory()
         ->published()
         ->has(MenuItem::factory()->main(), 'items')
         ->create([
-            'published_at' => Carbon::parse('2026-11-14 08:00', 'Pacific/Auckland'),
+            'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
             'cutoff_time' => '11:00',
         ]);
 
@@ -78,7 +78,7 @@ test('menu from yesterday is not returned as today\'s menu', function () {
         ->published()
         ->has(MenuItem::factory()->main(), 'items')
         ->create([
-            'menu_date' => today(new DateTimeZone(MenuService::TIMEZONE))->subDay(),
+            'menu_date' => today(new DateTimeZone(OrderingWindowService::TIMEZONE))->subDay(),
         ]);
 
     getJson('/api/v1/menu/today')
