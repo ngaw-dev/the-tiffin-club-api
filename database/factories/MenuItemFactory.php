@@ -3,10 +3,9 @@
 namespace Database\Factories;
 
 use App\Models\MenuItem;
-use App\Services\MenuService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/** @extends Factory<\App\Models\MenuItem> */
+/** @extends Factory<MenuItem> */
 class MenuItemFactory extends Factory
 {
     public function definition(): array

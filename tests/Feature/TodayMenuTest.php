@@ -3,10 +3,11 @@
 use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Services\MenuService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use function Pest\Laravel\getJson;
 
-uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 test('customer can fetch today\'s published menu', function () {
     $menu = Menu::factory()

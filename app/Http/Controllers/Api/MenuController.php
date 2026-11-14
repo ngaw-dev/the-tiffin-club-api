@@ -13,9 +13,7 @@ class MenuController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly MenuService $menus)
-    {
-    }
+    public function __construct(private readonly MenuService $menus) {}
 
     /**
      * Today's menu: the main, extras with prices, and whether the store

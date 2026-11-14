@@ -2,12 +2,12 @@
 
 namespace Database\Factories;
 
-use App\Models\MenuItem;
+use App\Models\Menu;
 use App\Services\MenuService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Carbon;
 
-/** @extends Factory<\App\Models\Menu> */
+/** @extends Factory<Menu> */
 class MenuFactory extends Factory
 {
     public function definition(): array
