@@ -4,6 +4,7 @@ use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Services\MenuService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 
 use function Pest\Laravel\getJson;
 
@@ -48,6 +49,28 @@ test('today\'s menu row exists but is unpublished returns coming soon', function
     getJson('/api/v1/menu/today')
         ->assertOk()
         ->assertJsonPath('data.status', 'coming_soon');
+});
+
+test('menu response exposes the ordering window so clients never compute time', function () {
+    Carbon::setTestNow(Carbon::parse('2026-11-14 10:30', 'Pacific/Auckland'));
+
+    Menu::factory()
+        ->published()
+        ->has(MenuItem::factory()->main(), 'items')
+        ->create([
+            'published_at' => Carbon::parse('2026-11-14 08:00', 'Pacific/Auckland'),
+            'cutoff_time' => '11:00',
+        ]);
+
+    getJson('/api/v1/menu/today')
+        ->assertOk()
+        ->assertJsonPath('data.ordering.state', 'closing_soon')
+        ->assertJsonPath('data.ordering.open', true)
+        ->assertJsonPath('data.ordering.closing_soon', true)
+        ->assertJsonPath('data.ordering.opens_at', '09:00')
+        ->assertJsonPath('data.ordering.closes_at', '11:00');
+
+    Carbon::setTestNow();
 });
 
 test('menu from yesterday is not returned as today\'s menu', function () {
