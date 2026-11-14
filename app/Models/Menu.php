@@ -12,6 +12,8 @@ class Menu extends Model
     /** @use HasFactory<MenuFactory> */
     use HasFactory;
 
+    protected $fillable = ['menu_date', 'published_at', 'cutoff_time'];
+
     protected $casts = [
         'menu_date' => 'date',
         'published_at' => 'datetime',

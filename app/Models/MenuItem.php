@@ -16,6 +16,8 @@ class MenuItem extends Model
 
     public const TYPE_EXTRA = 'extra';
 
+    protected $fillable = ['menu_id', 'type', 'name', 'description', 'price', 'sort_order'];
+
     protected $casts = [
         'price' => 'integer',
         'sort_order' => 'integer',

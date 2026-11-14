@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderController;
 use Illuminate\Support\Facades\Route;
@@ -10,4 +11,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/orders/{token}', [OrderController::class, 'show'])->name('orders.show');
     Route::patch('/orders/{token}', [OrderController::class, 'update'])->name('orders.update');
     Route::delete('/orders/{token}', [OrderController::class, 'destroy'])->name('orders.destroy');
+
+    Route::post('/account/register', [AccountController::class, 'register'])->name('account.register');
+    Route::post('/account/login', [AccountController::class, 'login'])->name('account.login');
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/account/orders', [AccountController::class, 'orders'])->name('account.orders');
+        Route::get('/account/prefill', [AccountController::class, 'prefill'])->name('account.prefill');
+    });
 });
