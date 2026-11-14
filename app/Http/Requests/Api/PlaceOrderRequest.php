@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\GlobalSetting;
 use App\Models\Menu;
 use App\Models\Order;
 use App\Services\MenuService;
@@ -28,10 +29,10 @@ class PlaceOrderRequest extends FormRequest
         return [
             'fulfilment' => ['required', Rule::in([Order::FULFILMENT_PICKUP, Order::FULFILMENT_DELIVERY])],
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required_if:fulfilment,delivery', 'nullable', 'string', 'max:32'],
+            'email' => ['required_without:phone', 'nullable', 'email', 'max:255'],
+            'phone' => ['required_without:email', 'nullable', 'string', 'max:32'],
             'address' => ['nullable', 'string', 'max:255'],
-            'suburb' => ['required_if:fulfilment,delivery', 'nullable', 'string', Rule::in(config('tiffin.delivery_suburbs'))],
+            'suburb' => ['required_if:fulfilment,delivery', 'nullable', 'string', Rule::in(GlobalSetting::current()->delivery_suburbs)],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => [
                 'required',

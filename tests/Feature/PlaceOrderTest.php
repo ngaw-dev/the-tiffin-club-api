@@ -84,7 +84,7 @@ it('rejects an order when the ordering window is closed', function () {
     ])->assertStatus(422)->assertJsonValidationErrors('ordering');
 });
 
-it('requires phone and a valid Wellington suburb for delivery orders', function () {
+it('requires a valid suburb from global settings for delivery orders; phone optional', function () {
     [, $main] = openMenuWithItems();
 
     $base = [
@@ -96,13 +96,30 @@ it('requires phone and a valid Wellington suburb for delivery orders', function 
     ];
 
     postJson('/api/v1/orders', $base)
-        ->assertUnprocessable()->assertJsonValidationErrors(['phone', 'suburb']);
-
-    postJson('/api/v1/orders', $base + ['phone' => '0211234567', 'suburb' => 'Rotorua'])
         ->assertUnprocessable()->assertJsonValidationErrors('suburb');
 
-    postJson('/api/v1/orders', $base + ['phone' => '0211234567', 'suburb' => 'Te Aro'])
+    postJson('/api/v1/orders', $base + ['suburb' => 'Rotorua'])
+        ->assertUnprocessable()->assertJsonValidationErrors('suburb');
+
+    postJson('/api/v1/orders', $base + ['suburb' => 'Te Aro'])
         ->assertCreated();
+});
+
+it('requires at least one of email or phone', function () {
+    [, $main] = openMenuWithItems();
+
+    postJson('/api/v1/orders', [
+        'fulfilment' => 'pickup',
+        'name' => 'Amol W',
+        'items' => [['id' => $main->id, 'quantity' => 1]],
+    ])->assertUnprocessable()->assertJsonValidationErrors(['email', 'phone']);
+
+    postJson('/api/v1/orders', [
+        'fulfilment' => 'pickup',
+        'name' => 'Amol W',
+        'phone' => '0211234567',
+        'items' => [['id' => $main->id, 'quantity' => 1]],
+    ])->assertCreated();
 });
 
 it('does not require phone or suburb for pickup orders', function () {
@@ -111,7 +128,7 @@ it('does not require phone or suburb for pickup orders', function () {
     postJson('/api/v1/orders', [
         'fulfilment' => 'pickup',
         'name' => 'Amol W',
-        'email' => 'amol@example.com',
+        'phone' => '0211234567',
         'items' => [['id' => $main->id, 'quantity' => 1]],
     ])->assertCreated();
 });

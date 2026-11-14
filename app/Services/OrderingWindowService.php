@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\GlobalSetting;
 use App\Models\Menu;
 use Illuminate\Support\Carbon;
 
@@ -28,7 +29,9 @@ class OrderingWindowService
         $publishedAt = Carbon::parse($menu->published_at)->setTimezone($tz);
         $opensAt = $publishedAt->greaterThan($baseOpen) ? $publishedAt : $baseOpen;
 
-        $cutoff = $menu->cutoff_time ?? config('tiffin.default_cutoff_time');
+        $cutoff = $menu->cutoff_time
+            ?? GlobalSetting::query()->value('order_cutoff_time')
+            ?? config('tiffin.default_cutoff_time');
         $closesAt = $day->copy()->setTimeFromTimeString($cutoff);
 
         return new OrderingWindow($opensAt, $closesAt, $now);

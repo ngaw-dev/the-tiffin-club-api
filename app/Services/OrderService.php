@@ -44,8 +44,7 @@ class OrderService
                 'status' => Order::STATUS_PLACED,
                 'fulfilment' => $request->validated('fulfilment'),
                 'name' => $request->validated('name'),
-                'email' => strtolower($request->validated('email')),
-                'phone' => $request->validated('phone'),
+                'email' => strtolower((string) $request->validated('email')),                'phone' => $request->validated('phone'),
                 'address' => $request->validated('address'),
                 'suburb' => $request->validated('suburb'),
                 'placed_at' => now(),
@@ -80,6 +79,35 @@ class OrderService
 
         if (now()->isAfter($order->expires_at)) {
             throw new OrderNoLongerAvailable;
+        }
+
+        return $order;
+    }
+
+    /**
+     * Knowledge-based order lookup: the manage token plus the email or
+     * phone used at checkout. Any mismatch (or missing/expired token)
+     * is a uniform "not found" so nothing leaks about which identifier
+     * an order carries.
+     */
+    public function lookup(string $token, ?string $email, ?string $phone): Order
+    {
+        $order = Order::query()
+            ->with(['items.menuItem'])
+            ->where('manage_token', $token)
+            ->first();
+
+        if ($order === null || now()->isAfter($order->expires_at)) {
+            throw new OrderNotFound;
+        }
+
+        $matchesEmail = $email !== null && $order->email !== null
+            && $order->email === strtolower($email);
+        $matchesPhone = $phone !== null && $order->phone !== null
+            && $order->phone === $phone;
+
+        if (! $matchesEmail && ! $matchesPhone) {
+            throw new OrderNotFound;
         }
 
         return $order;

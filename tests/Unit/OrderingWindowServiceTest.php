@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\GlobalSetting;
 use App\Models\Menu;
 use App\Services\MenuService;
 use App\Services\OrderingWindowService;
@@ -55,8 +56,8 @@ it('opens at publish time when the menu is published late', function () {
     expect(app(OrderingWindowService::class)->forMenu($menu->refresh())->isOpen())->toBeTrue();
 });
 
-it('falls back to the global default cutoff when none is set for the day', function () {
-    config(['tiffin.default_cutoff_time' => '12:30']);
+it('falls back to the global settings cutoff when none is set for the day', function () {
+    GlobalSetting::query()->update(['order_cutoff_time' => '12:30']);
 
     $menu = Menu::factory()->published()->create([
         'published_at' => aklToday('08:00'),
@@ -66,6 +67,17 @@ it('falls back to the global default cutoff when none is set for the day', funct
     $window = app(OrderingWindowService::class)->forMenu($menu);
 
     expect($window->closesAt->format('H:i'))->toBe('12:30');
+});
+
+it('prefers the menu cutoff over the global settings cutoff', function () {
+    GlobalSetting::query()->update(['order_cutoff_time' => '12:30']);
+
+    $menu = Menu::factory()->published()->create([
+        'published_at' => aklToday('08:00'),
+        'cutoff_time' => '10:30',
+    ]);
+
+    expect(app(OrderingWindowService::class)->forMenu($menu)->closesAt->format('H:i'))->toBe('10:30');
 });
 
 it('is closed before the window opens', function () {

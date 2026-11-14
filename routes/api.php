@@ -3,11 +3,15 @@
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\OrderLookupController;
+use App\Http\Controllers\Api\SettingController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::get('/menu/today', [MenuController::class, 'today'])->name('menu.today');
+    Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
+    Route::post('/orders/lookup', OrderLookupController::class)->name('orders.lookup');
     Route::get('/orders/{token}', [OrderController::class, 'show'])->name('orders.show');
     Route::patch('/orders/{token}', [OrderController::class, 'update'])->name('orders.update');
     Route::delete('/orders/{token}', [OrderController::class, 'destroy'])->name('orders.destroy');

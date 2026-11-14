@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\GlobalSetting;
 use App\Models\Order;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -27,7 +28,7 @@ class UpdateOrderRequest extends FormRequest
             'email' => ['sometimes', 'email', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:32'],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'suburb' => ['sometimes', 'nullable', 'string', Rule::in(config('tiffin.delivery_suburbs'))],
+            'suburb' => ['sometimes', 'nullable', 'string', Rule::in(GlobalSetting::current()->delivery_suburbs)],
             'items' => ['sometimes', 'array', 'min:1'],
             'items.*.id' => ['required_with:items', 'integer'],
             'items.*.quantity' => ['required_with:items', 'integer', 'min:1', 'max:20'],
