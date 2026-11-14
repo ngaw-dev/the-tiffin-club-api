@@ -13,7 +13,7 @@ class Order extends Model
     /** @use HasFactory<OrderFactory> */
     use HasFactory;
 
-    public const STATUS_PLACED = 'placed';
+    public const STATUS_CONFIRMED = 'confirmed';
 
     public const STATUS_READY_FOR_PICKUP = 'ready_for_pickup';
 

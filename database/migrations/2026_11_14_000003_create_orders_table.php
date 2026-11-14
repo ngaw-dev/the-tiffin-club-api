@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('menu_id')->constrained()->cascadeOnDelete();
             $table->string('manage_token', 64)->unique();
-            $table->string('status')->default('placed');
+            $table->string('status')->default('confirmed');
             $table->string('fulfilment'); // pickup|delivery
             $table->foreignId('customer_id')->constrained()->cascadeOnDelete();
             $table->string('name'); // snapshot at placement

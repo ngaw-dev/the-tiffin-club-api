@@ -46,7 +46,7 @@ class OrderService
             $order->fill([
                 'menu_id' => $menu->id,
                 'customer_id' => $customer->id,
-                'status' => Order::STATUS_PLACED,
+                'status' => Order::STATUS_CONFIRMED,
                 'fulfilment' => $request->validated('fulfilment'),
                 'name' => $request->validated('name'),
                 'address' => $request->validated('address'),

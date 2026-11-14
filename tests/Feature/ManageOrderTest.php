@@ -46,7 +46,7 @@ it('shows an order by manage token with total and lifecycle state', function () 
     getJson("/api/v1/orders/{$token}")
         ->assertOk()
         ->assertJsonPath('data.manage_token', $token)
-        ->assertJsonPath('data.status', 'placed')
+        ->assertJsonPath('data.status', 'confirmed')
         ->assertJsonPath('data.total', 1600);
 });
 

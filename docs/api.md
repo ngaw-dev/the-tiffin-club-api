@@ -125,7 +125,7 @@ Returned by every order endpoint (place, lookup, show, update, cancel):
 
 | Field | Notes |
 |-------|-------|
-| `status` | `placed` \| `ready_for_pickup` \| `out_for_delivery` \| `completed` \| `cancelled` |
+| `status` | `placed` \| `confirmed` \| `ready_for_pickup` \| `out_for_delivery` \| `completed` \| `cancelled` — orders are returned as `confirmed` immediately on placement (auto-confirm; manual staff confirmation to come) |
 | `fulfilment` | `pickup` \| `delivery` |
 | `name`, `address`, `suburb` | Snapshots taken at placement |
 | `email`, `phone` | Live from the linked customer |
