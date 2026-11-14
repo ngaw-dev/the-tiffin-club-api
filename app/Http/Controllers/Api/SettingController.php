@@ -25,6 +25,9 @@ class SettingController extends Controller
             'order_cutoff_time' => $settings->order_cutoff_time?->format('H:i'),
             'pickup_start_time' => $settings->pickup_start_time?->format('H:i'),
             'pickup_end_time' => $settings->pickup_end_time?->format('H:i'),
+            'store_phone' => $settings->store_phone,
+            'store_phone_alternate' => $settings->store_phone_alternate,
+            'store_email' => $settings->store_email,
         ], 'Store settings');
     }
 }

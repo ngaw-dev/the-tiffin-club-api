@@ -15,6 +15,9 @@ class GlobalSetting extends Model
         'order_cutoff_time',
         'pickup_start_time',
         'pickup_end_time',
+        'store_phone',
+        'store_phone_alternate',
+        'store_email',
     ];
 
     protected function casts(): array
