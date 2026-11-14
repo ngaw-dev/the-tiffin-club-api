@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `GET /api/v1/menu/today` returns today's main, extras with prices, and a store-open/coming-soon status
-- [ ] Exactly one menu per calendar day is honoured (Pacific/Auckland)
-- [ ] Unpublished day returns "coming soon", not an error
-- [ ] Acceptance covered by feature tests
+- [x] `GET /api/v1/menu/today` returns today's main, extras with prices, and a store-open/coming-soon status
+- [x] Exactly one menu per calendar day is honoured (Pacific/Auckland)
+- [x] Unpublished day returns "coming soon", not an error
+- [x] Acceptance covered by feature tests
