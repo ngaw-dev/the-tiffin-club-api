@@ -52,13 +52,13 @@ test('today\'s menu row exists but is unpublished returns coming soon', function
 });
 
 test('menu response exposes the ordering window so clients never compute time', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 10:30', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(today(OrderingWindowService::TIMEZONE)->setTime(10, 30));
 
     Menu::factory()
         ->published()
         ->has(MenuItem::factory()->main(), 'items')
         ->create([
-            'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+            'published_at' => today(OrderingWindowService::TIMEZONE)->setTime(8, 0),
             'cutoff_time' => '11:00',
         ]);
 

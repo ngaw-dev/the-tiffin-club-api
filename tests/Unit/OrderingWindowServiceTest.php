@@ -8,8 +8,17 @@ use Illuminate\Support\Carbon;
 
 uses(RefreshDatabase::class);
 
+/**
+ * All test times derive from today's date in the store timezone, so the
+ * suite is deterministic no matter which day it runs on.
+ */
+function aklToday(string $time): Carbon
+{
+    return Carbon::parse(today(OrderingWindowService::TIMEZONE)->toDateString().' '.$time, OrderingWindowService::TIMEZONE);
+}
+
 beforeEach(function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 10:00', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('10:00'));
 });
 
 afterEach(function () {
@@ -18,7 +27,7 @@ afterEach(function () {
 
 it('opens at 09:00 when the menu is published on time', function () {
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 08:30', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('08:30'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -32,7 +41,7 @@ it('opens at 09:00 when the menu is published on time', function () {
 
 it('opens at publish time when the menu is published late', function () {
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 10:30', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('10:30'),
         'cutoff_time' => '13:00',
     ]);
 
@@ -41,7 +50,7 @@ it('opens at publish time when the menu is published late', function () {
     expect($window->opensAt->format('H:i'))->toBe('10:30')
         ->and($window->isOpen())->toBeFalse();
 
-    Carbon::setTestNow(Carbon::parse('2026-11-14 10:45', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('10:45'));
 
     expect(app(OrderingWindowService::class)->forMenu($menu->refresh())->isOpen())->toBeTrue();
 });
@@ -50,7 +59,7 @@ it('falls back to the global default cutoff when none is set for the day', funct
     config(['tiffin.default_cutoff_time' => '12:30']);
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => null,
     ]);
 
@@ -60,10 +69,10 @@ it('falls back to the global default cutoff when none is set for the day', funct
 });
 
 it('is closed before the window opens', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('08:00'));
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 07:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('07:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -71,10 +80,10 @@ it('is closed before the window opens', function () {
 });
 
 it('is closed after the cutoff time', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 11:01', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('11:01'));
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -85,10 +94,10 @@ it('is closed after the cutoff time', function () {
 });
 
 it('flags closing soon inside the last 60 minutes before cutoff', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 10:30', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('10:30'));
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -99,10 +108,10 @@ it('flags closing soon inside the last 60 minutes before cutoff', function () {
 });
 
 it('does not flag closing soon exactly 60 minutes before cutoff', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 10:00', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('10:00'));
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -110,10 +119,10 @@ it('does not flag closing soon exactly 60 minutes before cutoff', function () {
 });
 
 it('allows ordering right up to the cutoff minute', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 11:00', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('11:00'));
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -121,12 +130,12 @@ it('allows ordering right up to the cutoff minute', function () {
 });
 
 it('serves the new day\'s menu immediately after Auckland midnight', function () {
-    // 00:30 on Nov 15 in Auckland — new day, menu not yet published.
-    Carbon::setTestNow(Carbon::parse('2026-11-15 00:30', OrderingWindowService::TIMEZONE));
+    // 00:30 on tomorrow's date in Auckland — new day, menu not yet published.
+    Carbon::setTestNow(aklToday('10:00')->addDay()->setTime(0, 30));
 
     Menu::factory()->published()->create([
-        'menu_date' => '2026-11-14',
-        'published_at' => Carbon::parse('2026-11-14 08:00', OrderingWindowService::TIMEZONE),
+        'menu_date' => today(OrderingWindowService::TIMEZONE)->subDay()->toDateString(),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -136,10 +145,10 @@ it('serves the new day\'s menu immediately after Auckland midnight', function ()
 });
 
 it('reports closed rather than opening later when a menu publishes after its cutoff', function () {
-    Carbon::setTestNow(Carbon::parse('2026-11-14 13:30', OrderingWindowService::TIMEZONE));
+    Carbon::setTestNow(aklToday('13:30'));
 
     $menu = Menu::factory()->published()->create([
-        'published_at' => Carbon::parse('2026-11-14 13:00', OrderingWindowService::TIMEZONE),
+        'published_at' => aklToday('13:00'),
         'cutoff_time' => '11:00',
     ]);
 
@@ -150,12 +159,13 @@ it('reports closed rather than opening later when a menu publishes after its cut
 });
 
 it('computes everything in Pacific/Auckland even across a UTC midnight rollover', function () {
-    // 2026-11-14 23:30 UTC is still 2026-11-15 12:30 in Auckland (NZDT, UTC+13).
-    Carbon::setTestNow(Carbon::parse('2026-11-14 23:30', 'UTC'));
+    // 23:30 in Auckland is 10:30 UTC the same day during NZDT (UTC+13):
+    // a UTC clock has not yet crossed midnight, but Auckland nearly has.
+    Carbon::setTestNow(aklToday('10:00')->setTime(23, 30)->setTimezone('UTC'));
 
     $menu = Menu::factory()->published()->create([
-        'menu_date' => '2026-11-15',
-        'published_at' => Carbon::parse('2026-11-15 09:00', OrderingWindowService::TIMEZONE),
+        'menu_date' => today(OrderingWindowService::TIMEZONE)->toDateString(),
+        'published_at' => aklToday('08:00'),
         'cutoff_time' => '12:00',
     ]);
 
