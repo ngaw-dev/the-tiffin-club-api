@@ -14,22 +14,13 @@ class UpdateOrderRequest extends FormRequest
     }
 
     /**
-     * The order being edited, resolved from the route token.
-     */
-    private function orderFromRoute(): ?Order
-    {
-        $token = (string) $this->route('token');
-
-        return Order::query()->where('manage_token', $token)->first();
-    }
-
-    /**
+     * Item ids are validated against the order's own menu at write time
+     * by OrderService::update(), after the expiry/editability gates.
+     *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        $order = $this->orderFromRoute();
-
         return [
             'fulfilment' => ['sometimes', Rule::in([Order::FULFILMENT_PICKUP, Order::FULFILMENT_DELIVERY])],
             'name' => ['sometimes', 'string', 'max:255'],
@@ -38,11 +29,7 @@ class UpdateOrderRequest extends FormRequest
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'suburb' => ['sometimes', 'nullable', 'string', Rule::in(config('tiffin.delivery_suburbs'))],
             'items' => ['sometimes', 'array', 'min:1'],
-            'items.*.id' => [
-                'required_with:items',
-                'integer',
-                Rule::exists('menu_items', 'id')->where('menu_id', $order?->menu_id ?? 0),
-            ],
+            'items.*.id' => ['required_with:items', 'integer'],
             'items.*.quantity' => ['required_with:items', 'integer', 'min:1', 'max:20'],
         ];
     }

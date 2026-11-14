@@ -56,11 +56,7 @@ class OrderService
 
             $order = $this->syncItems($order, $request->validated('items'), $menuItems);
 
-            $order->audits()->create([
-                'actor' => OrderUpdate::ACTOR_CUSTOMER,
-                'action' => OrderUpdate::ACTION_PLACED,
-                'changes' => ['items' => $request->validated('items')],
-            ]);
+            $this->recordAudit($order, OrderUpdate::ACTION_PLACED, ['items' => $request->validated('items')]);
 
             return $order->refresh();
         });
@@ -106,6 +102,7 @@ class OrderService
     public function update(Order $order, array $attributes): Order
     {
         $this->assertEditable($order);
+        $this->assertItemsOnMenu($order, $attributes['items'] ?? []);
 
         return DB::transaction(function () use ($order, $attributes): Order {
             $changes = [];
@@ -125,11 +122,7 @@ class OrderService
 
             $order->save();
 
-            $order->audits()->create([
-                'actor' => OrderUpdate::ACTOR_CUSTOMER,
-                'action' => OrderUpdate::ACTION_EDITED,
-                'changes' => $changes,
-            ]);
+            $this->recordAudit($order, OrderUpdate::ACTION_EDITED, $changes);
 
             return $order->refresh();
         });
@@ -142,16 +135,14 @@ class OrderService
     {
         $this->assertEditable($order);
 
-        $order->status = Order::STATUS_CANCELLED;
-        $order->save();
+        return DB::transaction(function () use ($order): Order {
+            $order->status = Order::STATUS_CANCELLED;
+            $order->save();
 
-        $order->audits()->create([
-            'actor' => OrderUpdate::ACTOR_CUSTOMER,
-            'action' => OrderUpdate::ACTION_CANCELLED,
-            'changes' => null,
-        ]);
+            $this->recordAudit($order, OrderUpdate::ACTION_CANCELLED, null);
 
-        return $order->refresh();
+            return $order->refresh();
+        });
     }
 
     /**
@@ -187,5 +178,30 @@ class OrderService
                 'ordering' => 'The ordering window is closed; this order can no longer be changed.',
             ]);
         }
+    }
+
+    /**
+     * Every line must reference an item on the order's own menu.
+     */
+    private function assertItemsOnMenu(Order $order, array $lines): void
+    {
+        $menuItemIds = $order->menu->items->pluck('id')->flip();
+
+        foreach ($lines as $index => $line) {
+            if (! $menuItemIds->has($line['id'])) {
+                throw ValidationException::withMessages([
+                    "items.{$index}.id" => 'The selected item is not on this order\'s menu.',
+                ]);
+            }
+        }
+    }
+
+    private function recordAudit(Order $order, string $action, ?array $changes): void
+    {
+        $order->audits()->create([
+            'actor' => OrderUpdate::ACTOR_CUSTOMER,
+            'action' => $action,
+            'changes' => $changes,
+        ]);
     }
 }

@@ -38,7 +38,6 @@ function placedOrder(array $menuAttrs = []): array
 
 afterEach(function () {
     Carbon::setTestNow();
-    $this->withoutMiddleware(); // reset any throttling state expectations
 });
 
 it('shows an order by manage token with total and lifecycle state', function () {
@@ -108,4 +107,48 @@ it('returns no longer available for an expired token, not a bare 404', function 
     getJson("/api/v1/orders/{$token}")
         ->assertGone()
         ->assertJsonPath('message', 'This order is no longer available');
+});
+
+it('returns no longer available for expired tokens on edit and cancel too', function () {
+    [$token, $main] = placedOrder();
+
+    Carbon::setTestNow(today(OrderingWindowService::TIMEZONE)->setTime(23, 59, 59)->addSecond());
+
+    patchJson("/api/v1/orders/{$token}", ['items' => [['id' => $main->id, 'quantity' => 2]]])
+        ->assertGone();
+
+    deleteJson("/api/v1/orders/{$token}")
+        ->assertGone();
+});
+
+it('cannot edit a cancelled order', function () {
+    [$token] = placedOrder();
+
+    deleteJson("/api/v1/orders/{$token}")->assertOk();
+
+    patchJson("/api/v1/orders/{$token}", ['name' => 'Someone Else'])
+        ->assertStatus(422)->assertJsonValidationErrors('ordering');
+});
+
+it('rejects edits containing items from another menu', function () {
+    [$token, $main] = placedOrder();
+
+    $foreign = MenuItem::factory()->extra()->create([
+        'menu_id' => Menu::factory()->create([
+            'menu_date' => today(OrderingWindowService::TIMEZONE)->subDay(),
+        ])->id,
+    ]);
+
+    patchJson("/api/v1/orders/{$token}", [
+        'items' => [['id' => $foreign->id, 'quantity' => 1]],
+    ])->assertStatus(422)->assertJsonValidationErrors('items.0.id');
+});
+
+it('rate limits customer endpoints per IP', function () {
+    $response = null;
+    for ($i = 0; $i < 61; $i++) {
+        $response = getJson('/api/v1/menu/today');
+    }
+
+    expect($response->status())->toBe(429);
 });

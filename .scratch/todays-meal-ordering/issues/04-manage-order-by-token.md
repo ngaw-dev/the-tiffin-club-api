@@ -4,11 +4,11 @@
 
 **Blocked by:** 03 (Place an order).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `GET /api/v1/orders/{token}` returns order with total and lifecycle state
-- [ ] `PATCH /api/v1/orders/{token}` edits items/details until cutoff, in place, with append-only audit trail
-- [ ] `DELETE /api/v1/orders/{token}` cancels until cutoff
-- [ ] Expired token returns "no longer available", not a bare 404
-- [ ] Order lifecycle states: placed → ready for pickup / out for delivery → completed, plus cancelled
-- [ ] Per-IP rate limiting on customer endpoints
+- [x] `GET /api/v1/orders/{token}` returns order with total and lifecycle state
+- [x] `PATCH /api/v1/orders/{token}` edits items/details until cutoff, in place, with append-only audit trail
+- [x] `DELETE /api/v1/orders/{token}` cancels until cutoff
+- [x] Expired token returns "no longer available", not a bare 404
+- [x] Order lifecycle states: placed → ready for pickup / out for delivery → completed, plus cancelled
+- [x] Per-IP rate limiting on customer endpoints

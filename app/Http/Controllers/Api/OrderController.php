@@ -11,6 +11,7 @@ use App\Services\OrderNotFound;
 use App\Services\OrderService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
@@ -33,46 +34,42 @@ class OrderController extends Controller
         );
     }
 
-    public function show(string $token): JsonResponse
+    public function show(Request $request, string $token): JsonResponse
     {
-        try {
-            $order = $this->orders->findByToken($token);
-        } catch (OrderNotFound) {
-            return $this->errorResponse('We couldn\'t find that order', 'We couldn\'t find what you\'re looking for', 404);
-        } catch (OrderNoLongerAvailable) {
-            return $this->errorResponse('This order is no longer available', 'This order is no longer available', 410);
-        }
-
-        return $this->successResponse(new OrderResource($order), 'Here\'s your order');
+        return $this->withOrder($token, fn () => $this->successResponse(
+            new OrderResource($this->orders->findByToken($token)),
+            'Here\'s your order',
+        ));
     }
 
     public function update(UpdateOrderRequest $request, string $token): JsonResponse
     {
-        try {
-            $order = $this->orders->findByToken($token);
-        } catch (OrderNotFound) {
-            return $this->errorResponse('We couldn\'t find that order', 'We couldn\'t find what you\'re looking for', 404);
-        } catch (OrderNoLongerAvailable) {
-            return $this->errorResponse('This order is no longer available', 'This order is no longer available', 410);
-        }
-
-        $order = $this->orders->update($order, $request->validated());
-
-        return $this->successResponse(new OrderResource($order->load('items.menuItem')), 'Order updated');
+        return $this->withOrder($token, fn () => $this->successResponse(
+            new OrderResource($this->orders->update($this->orders->findByToken($token), $request->validated())->load('items.menuItem')),
+            'Order updated',
+        ));
     }
 
-    public function destroy(string $token): JsonResponse
+    public function destroy(Request $request, string $token): JsonResponse
+    {
+        return $this->withOrder($token, fn () => $this->successResponse(
+            new OrderResource($this->orders->cancel($this->orders->findByToken($token))->load('items.menuItem')),
+            'Order cancelled',
+        ));
+    }
+
+    /**
+     * Run the action with unified not-found (404) and no-longer-available
+     * (410) handling for token-addressed order endpoints.
+     */
+    private function withOrder(string $token, callable $action): JsonResponse
     {
         try {
-            $order = $this->orders->findByToken($token);
+            return $action();
         } catch (OrderNotFound) {
             return $this->errorResponse('We couldn\'t find that order', 'We couldn\'t find what you\'re looking for', 404);
         } catch (OrderNoLongerAvailable) {
             return $this->errorResponse('This order is no longer available', 'This order is no longer available', 410);
         }
-
-        $order = $this->orders->cancel($order);
-
-        return $this->successResponse(new OrderResource($order->load('items.menuItem')), 'Order cancelled');
     }
 }
