@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Menu;
 use App\Models\MenuItem;
+use App\Services\MenuService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -19,7 +20,7 @@ class TodayMenuTest extends TestCase
             ->has(MenuItem::factory()->main(), 'items')
             ->has(MenuItem::factory()->count(2)->extra(), 'items')
             ->create([
-                'menu_date' => Carbon::today(new \DateTimeZone('Pacific/Auckland')),
+                'menu_date' => Carbon::today(new \DateTimeZone(MenuService::TIMEZONE)),
             ]);
 
         $response = $this->getJson('/api/v1/menu/today');
@@ -47,13 +48,24 @@ class TodayMenuTest extends TestCase
             ->assertJsonPath('data.main', null);
     }
 
+    public function test_todays_menu_row_exists_but_is_unpublished_returns_coming_soon(): void
+    {
+        Menu::factory()
+            ->has(MenuItem::factory()->main(), 'items')
+            ->create(['published_at' => null]);
+
+        $this->getJson('/api/v1/menu/today')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'coming_soon');
+    }
+
     public function test_menu_from_yesterday_is_not_returned_as_todays_menu(): void
     {
         Menu::factory()
             ->published()
             ->has(MenuItem::factory()->main(), 'items')
             ->create([
-                'menu_date' => Carbon::yesterday(new \DateTimeZone('Pacific/Auckland')),
+                'menu_date' => Carbon::yesterday(new \DateTimeZone(MenuService::TIMEZONE)),
             ]);
 
         $this->getJson('/api/v1/menu/today')

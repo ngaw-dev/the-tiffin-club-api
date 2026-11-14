@@ -22,7 +22,7 @@ class DemoMenuSeeder extends Seeder
 
         MenuItem::create([
             'menu_id' => $menu->id,
-            'type' => 'main',
+            'type' => MenuItem::TYPE_MAIN,
             'name' => 'Butter Chicken with Jeera Rice',
             'description' => 'Slow-cooked butter chicken served with cumin rice and a side of raita.',
             'price' => 1600,

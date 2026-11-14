@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MenuItemResource;
+use App\Models\MenuItem;
 use App\Services\MenuService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -32,8 +33,8 @@ class MenuController extends Controller
             ], 'Today\'s menu is coming soon');
         }
 
-        $main = $menu->items->firstWhere('type', 'main');
-        $extras = $menu->items->where('type', 'extra')->values();
+        $main = $menu->items->firstWhere('type', MenuItem::TYPE_MAIN);
+        $extras = $menu->items->where('type', MenuItem::TYPE_EXTRA)->values();
 
         return $this->successResponse([
             'status' => 'open',

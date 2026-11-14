@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\MenuItem;
+use App\Services\MenuService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Carbon;
 
@@ -11,7 +13,7 @@ class MenuFactory extends Factory
     public function definition(): array
     {
         return [
-            'menu_date' => Carbon::today(new \DateTimeZone('Pacific/Auckland')),
+            'menu_date' => Carbon::today(new \DateTimeZone(MenuService::TIMEZONE)),
             'published_at' => null,
         ];
     }
