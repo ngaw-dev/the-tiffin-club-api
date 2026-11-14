@@ -38,6 +38,7 @@ Every response uses the same envelope:
 - An order is linked to a **Customer** resolved from the submitted email/phone (find-or-create; when both match different customers, the email match wins). Email is stored lowercase, phone digits-only.
 - The **manage token** returned at placement is the sole handle to view/edit/cancel an order.
 - Orders can be edited or cancelled by the customer only until the day's **cutoff time**.
+- Placing an order fires an `OrderPlaced` event after the transaction commits; a queued listener sends the confirmation email. Both outcomes (sent, skipped-no-email) are recorded in the order's internal audit trail (`order_updates`, actor `system`) — internal only, not exposed via the API.
 
 ---
 
@@ -128,7 +129,9 @@ Returned by every order endpoint (place, lookup, show, update, cancel):
 | `fulfilment` | `pickup` \| `delivery` |
 | `name`, `address`, `suburb` | Snapshots taken at placement |
 | `email`, `phone` | Live from the linked customer |
+| `delivery_notes` | Free-text notes for the driver (e.g. access instructions) |
 | `total` | Server-computed at menu prices, cents |
+| `expires_at` | The manage token's lifetime ends here — 23:59:59 on the order day |
 
 ### `POST /orders`
 
@@ -159,7 +162,7 @@ Rules:
 
 Side effects:
 
-- Customers with an email are sent a **confirmation email** (queued, async): order summary, fulfilment details, and the manage deep link. Phone-only customers receive nothing — both outcomes are appended to the order's internal audit trail.
+- Fires `OrderPlaced` (after commit). Customers with an email are sent a **confirmation email** (queued, async): order summary, fulfilment details, the cutoff deadline, and the manage deep link — the token is in the email body, so mailbox access equals order control (same trust as lookup). Phone-only customers receive nothing out-of-band. Both outcomes are appended to the order's internal audit trail.
 
 Errors:
 
