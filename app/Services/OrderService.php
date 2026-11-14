@@ -4,31 +4,38 @@ namespace App\Services;
 
 use App\Http\Requests\Api\PlaceOrderRequest;
 use App\Models\Order;
+use Illuminate\Contracts\Validation\ValidationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class OrderService
 {
     public function __construct(
-        private readonly MenuService $menus,
         private readonly OrderingWindowService $orderingWindows,
     ) {}
 
     /**
-     * Place an order for today's menu from a validated request. Prices
-     * are snapshot from the menu at order time; the manage token is the
-     * sole handle on the order and expires at end of day.
+     * Place an order for today's menu from a validated request. The
+     * ordering window is re-checked at write time so validation can't be
+     * raced past the cutoff. Prices are snapshot from the menu; the
+     * manage token is the sole handle and expires at 23:59:59 today.
      */
     public function place(PlaceOrderRequest $request): Order
     {
-        $menu = $this->menus->todaysPublishedMenu();
+        $menu = $request->todaysMenu();
+
+        if ($menu === null || ! $this->orderingWindows->forMenu($menu)->isOpen()) {
+            throw ValidationException::withMessages([
+                'ordering' => 'The ordering window is closed.',
+            ]);
+        }
 
         return DB::transaction(function () use ($request, $menu): Order {
             $menuItems = $menu->items->keyBy('id');
 
-            $order = Order::create([
+            $order = new Order;
+            $order->fill([
                 'menu_id' => $menu->id,
-                'manage_token' => bin2hex(random_bytes(32)),
                 'status' => Order::STATUS_PLACED,
                 'fulfilment' => $request->validated('fulfilment'),
                 'name' => $request->validated('name'),
@@ -37,8 +44,10 @@ class OrderService
                 'address' => $request->validated('address'),
                 'suburb' => $request->validated('suburb'),
                 'placed_at' => now(),
-                'expires_at' => Carbon::today(OrderingWindowService::TIMEZONE)->modify('tomorrow midnight'),
+                'expires_at' => Carbon::today(OrderingWindowService::TIMEZONE)->setTime(23, 59, 59),
             ]);
+            $order->manage_token = bin2hex(random_bytes(32));
+            $order->save();
 
             $total = 0;
             foreach ($request->validated('items') as $line) {
@@ -52,7 +61,8 @@ class OrderService
                 ]);
             }
 
-            $order->update(['total' => $total]);
+            $order->total = $total;
+            $order->save();
 
             return $order->refresh();
         });

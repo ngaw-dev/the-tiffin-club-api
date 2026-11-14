@@ -11,6 +11,10 @@ use Illuminate\Validation\Rule;
 
 class PlaceOrderRequest extends FormRequest
 {
+    private ?Menu $cachedMenu = null;
+
+    private bool $menuResolved = false;
+
     public function authorize(): bool
     {
         return true;
@@ -26,13 +30,13 @@ class PlaceOrderRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
             'phone' => ['required_if:fulfilment,delivery', 'nullable', 'string', 'max:32'],
-            'address' => ['required_if:fulfilment,delivery', 'nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:255'],
             'suburb' => ['required_if:fulfilment,delivery', 'nullable', 'string', Rule::in(config('tiffin.delivery_suburbs'))],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => [
                 'required',
                 'integer',
-                Rule::exists('menu_items', 'id')->where('menu_id', $this->menuIdForValidation()),
+                Rule::exists('menu_items', 'id')->where('menu_id', $this->todaysMenu()?->id ?? 0),
             ],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:20'],
         ];
@@ -45,23 +49,37 @@ class PlaceOrderRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            if ($this->menuForValidation() === null && ! $validator->errors()->has('ordering')) {
-                $validator->errors()->add('ordering', 'No menu is published for today yet.');
-            } elseif ($this->menuForValidation() !== null
-                && ! app(OrderingWindowService::class)->forMenu($this->menuForValidation())->isOpen()
-                && ! $validator->errors()->has('ordering')) {
+            if (! $this->menuIsOrderable() && ! $validator->errors()->has('ordering')) {
                 $validator->errors()->add('ordering', 'The ordering window is closed.');
             }
         });
     }
 
-    private function menuForValidation(): ?Menu
+    /**
+     * Today's published menu, resolved once per request.
+     */
+    public function todaysMenu(): ?Menu
     {
-        return app(MenuService::class)->todaysPublishedMenu();
+        if (! $this->menuResolved) {
+            $this->cachedMenu = app(MenuService::class)->todaysPublishedMenu();
+            $this->menuResolved = true;
+        }
+
+        return $this->cachedMenu;
     }
 
-    private function menuIdForValidation(): ?int
+    /**
+     * True when today's menu exists and the ordering window is open.
+     * Re-checked at write time by the service, not only here.
+     */
+    public function menuIsOrderable(): bool
     {
-        return $this->menuForValidation()?->id;
+        if ($this->todaysMenu() === null) {
+            return false;
+        }
+
+        return app(OrderingWindowService::class)
+            ->forMenu($this->todaysMenu())
+            ->isOpen();
     }
 }

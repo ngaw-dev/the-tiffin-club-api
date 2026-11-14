@@ -21,7 +21,6 @@ class Order extends Model
 
     protected $fillable = [
         'menu_id',
-        'manage_token',
         'status',
         'fulfilment',
         'name',
@@ -29,7 +28,6 @@ class Order extends Model
         'phone',
         'address',
         'suburb',
-        'total',
         'placed_at',
         'expires_at',
     ];

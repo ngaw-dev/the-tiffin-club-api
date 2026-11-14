@@ -115,3 +115,26 @@ it('does not require phone or suburb for pickup orders', function () {
         'items' => [['id' => $main->id, 'quantity' => 1]],
     ])->assertCreated();
 });
+
+it('rejects an order when no menu is published for today yet', function () {
+    // No menu created at all.
+    postJson('/api/v1/orders', [
+        'fulfilment' => 'pickup',
+        'name' => 'Amol W',
+        'email' => 'amol@example.com',
+        'items' => [['id' => 1, 'quantity' => 1]],
+    ])->assertStatus(422)->assertJsonValidationErrors(['items.0.id', 'ordering']);
+});
+
+it('does not require an address for delivery orders', function () {
+    [, $main] = openMenuWithItems();
+
+    postJson('/api/v1/orders', [
+        'fulfilment' => 'delivery',
+        'name' => 'Amol W',
+        'email' => 'amol@example.com',
+        'phone' => '0211234567',
+        'suburb' => 'Te Aro',
+        'items' => [['id' => $main->id, 'quantity' => 1]],
+    ])->assertCreated();
+});

@@ -4,11 +4,11 @@
 
 **Blocked by:** 01 (Today's menu read path), 02 (Ordering window service).
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `POST /api/v1/orders` accepts mains/extras with quantities, validates against today's published menu
-- [ ] Pickup or free delivery; delivery requires phone + valid Wellington suburb
-- [ ] Server-computed Order Total returned; payment never charged online
-- [ ] 64-hex Manage Token issued at creation
-- [ ] Placement rejected outside the ordering window
-- [ ] Feature tests cover happy path, invalid item, closed window, delivery validation
+- [x] `POST /api/v1/orders` accepts mains/extras with quantities, validates against today's published menu
+- [x] Pickup or free delivery; delivery requires phone + valid Wellington suburb
+- [x] Server-computed Order Total returned; payment never charged online
+- [x] 64-hex Manage Token issued at creation
+- [x] Placement rejected outside the ordering window
+- [x] Feature tests cover happy path, invalid item, closed window, delivery validation
