@@ -15,6 +15,14 @@ class Order extends Model
 
     public const STATUS_PLACED = 'placed';
 
+    public const STATUS_READY_FOR_PICKUP = 'ready_for_pickup';
+
+    public const STATUS_OUT_FOR_DELIVERY = 'out_for_delivery';
+
+    public const STATUS_COMPLETED = 'completed';
+
+    public const STATUS_CANCELLED = 'cancelled';
+
     public const FULFILMENT_PICKUP = 'pickup';
 
     public const FULFILMENT_DELIVERY = 'delivery';
@@ -46,5 +54,15 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function audits(): HasMany
+    {
+        return $this->hasMany(OrderUpdate::class);
+    }
+
+    public function isCancelled(): bool
+    {
+        return $this->status === self::STATUS_CANCELLED;
     }
 }

@@ -4,9 +4,14 @@ namespace App\Services;
 
 use App\Http\Requests\Api\PlaceOrderRequest;
 use App\Models\Order;
-use Illuminate\Contracts\Validation\ValidationException;
+use App\Models\OrderUpdate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class OrderNotFound extends \RuntimeException {}
+
+class OrderNoLongerAvailable extends \RuntimeException {}
 
 class OrderService
 {
@@ -49,22 +54,138 @@ class OrderService
             $order->manage_token = bin2hex(random_bytes(32));
             $order->save();
 
-            $total = 0;
-            foreach ($request->validated('items') as $line) {
-                $menuItem = $menuItems[$line['id']];
-                $total += $menuItem->price * $line['quantity'];
+            $order = $this->syncItems($order, $request->validated('items'), $menuItems);
 
-                $order->items()->create([
-                    'menu_item_id' => $menuItem->id,
-                    'quantity' => $line['quantity'],
-                    'unit_price' => $menuItem->price,
-                ]);
-            }
-
-            $order->total = $total;
-            $order->save();
+            $order->audits()->create([
+                'actor' => OrderUpdate::ACTOR_CUSTOMER,
+                'action' => OrderUpdate::ACTION_PLACED,
+                'changes' => ['items' => $request->validated('items')],
+            ]);
 
             return $order->refresh();
         });
+    }
+
+    /**
+     * Find an order by manage token; unknown tokens are not found, and
+     * expired tokens (past 23:59:59 on the order day) are explicitly
+     * "no longer available".
+     */
+    public function findByToken(string $token): Order
+    {
+        $order = Order::query()
+            ->with(['items.menuItem'])
+            ->where('manage_token', $token)
+            ->first();
+
+        if ($order === null) {
+            throw new OrderNotFound;
+        }
+
+        if (now()->isAfter($order->expires_at)) {
+            throw new OrderNoLongerAvailable;
+        }
+
+        return $order;
+    }
+
+    /**
+     * True when the customer may still change or cancel this order —
+     * the same server-side gate that guards placement.
+     */
+    public function isEditableByCustomer(Order $order): bool
+    {
+        return ! $order->isCancelled()
+            && $this->orderingWindows->forMenu($order->menu)->isOpen();
+    }
+
+    /**
+     * Edit an order in place: replace items, details, or both; recompute
+     * the total at menu prices; append to the audit trail.
+     */
+    public function update(Order $order, array $attributes): Order
+    {
+        $this->assertEditable($order);
+
+        return DB::transaction(function () use ($order, $attributes): Order {
+            $changes = [];
+
+            $detailFields = ['fulfilment', 'name', 'email', 'phone', 'address', 'suburb'];
+            foreach ($detailFields as $field) {
+                if (array_key_exists($field, $attributes) && $order->{$field} !== $attributes[$field]) {
+                    $changes[$field] = ['from' => $order->{$field}, 'to' => $attributes[$field]];
+                    $order->{$field} = $attributes[$field];
+                }
+            }
+
+            if (array_key_exists('items', $attributes)) {
+                $changes['items'] = $attributes['items'];
+                $order = $this->syncItems($order, $attributes['items'], $order->menu->items->keyBy('id'));
+            }
+
+            $order->save();
+
+            $order->audits()->create([
+                'actor' => OrderUpdate::ACTOR_CUSTOMER,
+                'action' => OrderUpdate::ACTION_EDITED,
+                'changes' => $changes,
+            ]);
+
+            return $order->refresh();
+        });
+    }
+
+    /**
+     * Cancel an order until cutoff; append to the audit trail.
+     */
+    public function cancel(Order $order): Order
+    {
+        $this->assertEditable($order);
+
+        $order->status = Order::STATUS_CANCELLED;
+        $order->save();
+
+        $order->audits()->create([
+            'actor' => OrderUpdate::ACTOR_CUSTOMER,
+            'action' => OrderUpdate::ACTION_CANCELLED,
+            'changes' => null,
+        ]);
+
+        return $order->refresh();
+    }
+
+    /**
+     * Replace the order's items with the given lines, recomputing the
+     * total at menu prices.
+     */
+    private function syncItems(Order $order, array $lines, $menuItems): Order
+    {
+        $order->items()->delete();
+
+        $total = 0;
+        foreach ($lines as $line) {
+            $menuItem = $menuItems[$line['id']];
+            $total += $menuItem->price * $line['quantity'];
+
+            $order->items()->create([
+                'menu_item_id' => $menuItem->id,
+                'quantity' => $line['quantity'],
+                'unit_price' => $menuItem->price,
+            ]);
+        }
+
+        $order->total = $total;
+        $order->save();
+
+        return $order;
+    }
+
+    private function assertEditable(Order $order): void
+    {
+        if (! $this->isEditableByCustomer($order)) {
+            throw ValidationException::withMessages([
+                'ordering' => 'The ordering window is closed; this order can no longer be changed.',
+            ]);
+        }
     }
 }
