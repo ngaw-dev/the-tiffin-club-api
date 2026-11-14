@@ -1,75 +1,63 @@
 <?php
 
-namespace Tests\Feature;
-
 use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Services\MenuService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
-use Tests\TestCase;
 
-class TodayMenuTest extends TestCase
-{
-    use RefreshDatabase;
+use function Pest\Laravel\getJson;
 
-    public function test_customer_can_fetch_todays_published_menu(): void
-    {
-        $menu = Menu::factory()
-            ->published()
-            ->has(MenuItem::factory()->main(), 'items')
-            ->has(MenuItem::factory()->count(2)->extra(), 'items')
-            ->create([
-                'menu_date' => Carbon::today(new \DateTimeZone(MenuService::TIMEZONE)),
-            ]);
+uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
 
-        $response = $this->getJson('/api/v1/menu/today');
+test('customer can fetch today\'s published menu', function () {
+    $menu = Menu::factory()
+        ->published()
+        ->has(MenuItem::factory()->main(), 'items')
+        ->has(MenuItem::factory()->count(2)->extra(), 'items')
+        ->create([
+            'menu_date' => today(new DateTimeZone(MenuService::TIMEZONE)),
+        ]);
 
-        $response->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'open')
-            ->assertJsonPath('data.main.name', $menu->items->firstWhere('type', 'main')->name)
-            ->assertJsonCount(2, 'data.extras');
+    $response = getJson('/api/v1/menu/today');
 
-        $this->assertEquals(
-            $menu->items->firstWhere('type', 'main')->price,
-            $response->json('data.main.price'),
-        );
-    }
+    $response->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data.status', 'open')
+        ->assertJsonPath('data.main.name', $menu->items->firstWhere('type', MenuItem::TYPE_MAIN)->name)
+        ->assertJsonCount(2, 'data.extras');
 
-    public function test_unpublished_day_returns_coming_soon_not_error(): void
-    {
-        $this->assertDatabaseCount('menus', 0);
+    expect($response->json('data.main.price'))
+        ->toBe($menu->items->firstWhere('type', MenuItem::TYPE_MAIN)->price);
+});
 
-        $this->getJson('/api/v1/menu/today')
-            ->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.status', 'coming_soon')
-            ->assertJsonPath('data.main', null);
-    }
+test('unpublished day returns coming soon, not an error', function () {
+    expect(Menu::count())->toBe(0);
 
-    public function test_todays_menu_row_exists_but_is_unpublished_returns_coming_soon(): void
-    {
-        Menu::factory()
-            ->has(MenuItem::factory()->main(), 'items')
-            ->create(['published_at' => null]);
+    getJson('/api/v1/menu/today')
+        ->assertOk()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('data.status', 'coming_soon')
+        ->assertJsonPath('data.main', null);
+});
 
-        $this->getJson('/api/v1/menu/today')
-            ->assertOk()
-            ->assertJsonPath('data.status', 'coming_soon');
-    }
+test('today\'s menu row exists but is unpublished returns coming soon', function () {
+    Menu::factory()
+        ->has(MenuItem::factory()->main(), 'items')
+        ->create(['published_at' => null]);
 
-    public function test_menu_from_yesterday_is_not_returned_as_todays_menu(): void
-    {
-        Menu::factory()
-            ->published()
-            ->has(MenuItem::factory()->main(), 'items')
-            ->create([
-                'menu_date' => Carbon::yesterday(new \DateTimeZone(MenuService::TIMEZONE)),
-            ]);
+    getJson('/api/v1/menu/today')
+        ->assertOk()
+        ->assertJsonPath('data.status', 'coming_soon');
+});
 
-        $this->getJson('/api/v1/menu/today')
-            ->assertOk()
-            ->assertJsonPath('data.status', 'coming_soon');
-    }
-}
+test('menu from yesterday is not returned as today\'s menu', function () {
+    Menu::factory()
+        ->published()
+        ->has(MenuItem::factory()->main(), 'items')
+        ->create([
+            'menu_date' => today(new DateTimeZone(MenuService::TIMEZONE))->subDay(),
+        ]);
+
+    getJson('/api/v1/menu/today')
+        ->assertOk()
+        ->assertJsonPath('data.status', 'coming_soon');
+});

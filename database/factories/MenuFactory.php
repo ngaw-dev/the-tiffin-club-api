@@ -20,6 +20,6 @@ class MenuFactory extends Factory
 
     public function published(): static
     {
-        return $this->state(fn () => ['published_at' => $this->faker->dateTimeThisYear()]);
+        return $this->state(fn () => ['published_at' => now()->subHour()]);
     }
 }
