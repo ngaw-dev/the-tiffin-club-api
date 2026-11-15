@@ -69,44 +69,48 @@ class OrderService
     /**
      * Find or create the customer for this order. Matched by email
      * first, then phone — when both match different customers the
-     * email match wins. Address/suburb are remembered as defaults.
+     * email match wins. Latest submitted details become the defaults.
      */
     private function resolveCustomer(PlaceOrderRequest $request): Customer
     {
-        $email = (string) $request->validated('email');
-        $phone = (string) $request->validated('phone');
+        $email = strtolower((string) $request->validated('email'));
+        $phone = preg_replace('/\D+/', '', (string) $request->validated('phone'));
 
-        // Mutators normalize (email lowercase, phone digits) so the
-        // lookups below compare in canonical form.
-        $customer = null;
+        $query = Customer::query();
 
         if ($email !== '') {
-            $customer = Customer::query()->where('email', strtolower($email))->first();
+            $query->where('email', $email); // mutator lowercases; lookup matches
+        } elseif ($phone !== '') {
+            $query->where('phone', $phone); // mutator strips digits; lookup matches
         }
 
-        if ($customer === null && $phone !== '') {
-            $customer = Customer::query()->where('phone', preg_replace('/\D+/', '', $phone))->first();
-        }
+        $customer = $query->first();
 
         if ($customer === null) {
             $customer = new Customer;
             $customer->name = $request->validated('name');
-            $customer->email = $email !== '' ? $email : null;
-            $customer->phone = $phone !== '' ? $phone : null;
-            $customer->save();
+            $customer->email = $request->validated('email');
+            $customer->phone = $request->validated('phone');
+
+            // Two first orders with the same email can race past the
+            // lookup above; the unique index decides, the loser re-fetches.
+            try {
+                $customer->save();
+            } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+                $customer = Customer::query()
+                    ->when($email !== '', fn ($q) => $q->where('email', $email))
+                    ->when($email === '' && $phone !== '', fn ($q) => $q->where('phone', $phone))
+                    ->first();
+            }
         }
 
         // Remember the latest submitted details as the defaults.
-        if ($customer->name !== $request->validated('name')) {
-            $customer->name = $request->validated('name');
-        }
-
-        foreach (['address', 'suburb'] as $field) {
-            $value = $request->validated($field);
-            if ($value !== null && $customer->{$field} !== $value) {
+        foreach (['name', 'email', 'phone', 'address', 'suburb'] as $field) {
+            if (($value = $request->validated($field)) !== null && $value !== '') {
                 $customer->{$field} = $value;
             }
         }
+
         if ($customer->isDirty()) {
             $customer->save();
         }
@@ -196,6 +200,16 @@ class OrderService
                     $changes[$field] = ['from' => $order->{$field}, 'to' => $attributes[$field]];
                     $order->{$field} = $attributes[$field];
                 }
+            }
+
+            foreach (['address', 'suburb'] as $field) {
+                if (array_key_exists($field, $attributes) && $order->customer->{$field} !== $attributes[$field]) {
+                    $changes[$field] = ['from' => $order->customer->{$field}, 'to' => $attributes[$field]];
+                    $order->customer->{$field} = $attributes[$field];
+                }
+            }
+            if ($order->customer->isDirty()) {
+                $order->customer->save();
             }
 
             if (array_key_exists('items', $attributes)) {

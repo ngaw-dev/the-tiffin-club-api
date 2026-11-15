@@ -35,6 +35,21 @@ class ClerkTokenService
      */
     public function claimsFrom(Request $request): ?object
     {
+        // Resolved once per request: store() and place() both need it.
+        $cached = $request->attributes->get('_clerk_claims');
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        $claims = $this->decode($request);
+        $request->attributes->set('_clerk_claims', $claims);
+
+        return $claims;
+    }
+
+    private function decode(Request $request): ?object
+    {
         $token = $request->bearerToken();
 
         if ($token === null || $token === '') {
@@ -51,7 +66,10 @@ class ClerkTokenService
 
         $this->assertClaims($claims);
 
-        if (($claims->email_verified ?? false) !== true || empty($claims->email)) {
+        $verified = $claims->email_verified ?? false;
+        $verified = $verified === true || $verified === 'verified';
+
+        if ($verified === false || empty($claims->email)) {
             throw new UnauthorizedHttpException('Bearer', 'Clerk email is not verified.');
         }
 
