@@ -58,9 +58,14 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    public function audits(): HasMany
+    public function updates(): HasMany
     {
         return $this->hasMany(OrderUpdate::class);
+    }
+
+    public function audits(): HasMany
+    {
+        return $this->updates();
     }
 
     public function isCancelled(): bool
