@@ -155,15 +155,17 @@ Place a guest order for today's menu. Returns **201** with the order object — 
 
 Rules:
 
-- `name` — required.
+- `name` — required. Stored on the customer, updated to the latest submitted value on every order.
 - `email` / `phone` — at least one required (both optional individually). Email lowercased, phone digits-only.
-- `address`, `delivery_notes` — optional.
+- `address`, `suburb`, `delivery_notes` — optional. Address/suburb stored on the customer as their delivery default.
 - `suburb` — required when `fulfilment=delivery`; must be in `delivery_suburbs` from `GET /settings`.
 - `items.*.id` — must exist on **today's** menu; `quantity` 1–20.
 
 Side effects:
 
+- Resolves the **customer** (find-or-create by email, then phone; email match wins on conflict) and updates their name/address/suburb to the submitted values.
 - Fires `OrderPlaced` (after commit). Customers with an email are sent a **confirmation email** (queued, async): order summary, fulfilment details, the cutoff deadline, and the manage deep link — the token is in the email body, so mailbox access equals order control (same trust as lookup). Phone-only customers receive nothing out-of-band. Both outcomes are appended to the order's internal audit trail.
+- The order's initial `status` is **`confirmed`** (auto-confirmed; manual staff confirmation to come).
 
 Errors:
 
@@ -171,7 +173,7 @@ Errors:
 
 ### `POST /orders/lookup`
 
-Knowledge-based lookup: manage token + the email or phone used at checkout. Every failure (unknown token, expired token, wrong contact) answers identically with **404**.
+Knowledge-based lookup: manage token + the email or phone used at checkout — matched against the customer's **current** email/phone (both live values). Every failure (unknown token, expired token, wrong contact) answers identically with **404**.
 
 **Request:**
 
@@ -194,15 +196,14 @@ Edit an order before cutoff. All fields `sometimes`; item ids validated against 
 ```json
 {
   "fulfilment": "pickup",
-  "name": "Amol W",
-  "address": "12 Cuba Street",
-  "suburb": "Te Aro",
   "delivery_notes": "Leave at door",
   "items": [{ "id": 3, "quantity": 1 }]
 }
 ```
 
-Contact details (`email`/`phone`) cannot be changed here — they belong to the customer. Errors: `422` (validation / off-menu items), **410** (expired), and `422` with `ordering` after cutoff.
+Applied fields: `fulfilment`, `delivery_notes`, `items`. Changing `fulfilment` to `delivery` does **not** re-validate a suburb (validate client-side against `GET /settings`). Errors: `422` (validation / off-menu items), **410** (expired), and `422` with `ordering` after cutoff.
+
+> ⚠️ Known gap: the request still *accepts* `name`, `address`, `suburb` (validated then silently ignored — these now live on the customer). Email/phone are already rejected.
 
 ### `DELETE /orders/{token}`
 
