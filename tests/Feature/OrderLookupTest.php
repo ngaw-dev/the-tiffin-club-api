@@ -85,5 +85,7 @@ it('exposes store settings publicly', function () {
         ->assertJsonPath('data.pickup_end_time', null)
         ->assertJsonPath('data.store_phone', '021 123 4567')
         ->assertJsonPath('data.store_phone_alternate', '04 555 1234')
-        ->assertJsonPath('data.store_email', 'hello@thetiffinclub.co.nz');
+        ->assertJsonPath('data.store_email', 'hello@thetiffinclub.co.nz')
+        ->assertJsonPath('data.pickup_address', '123 Cuba Street, Te Aro, Wellington')
+        ->assertJsonPath('data.pickup_map_url', null);
 });

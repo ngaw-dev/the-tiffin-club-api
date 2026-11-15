@@ -18,6 +18,8 @@ class GlobalSetting extends Model
         'store_phone',
         'store_phone_alternate',
         'store_email',
+        'pickup_address',
+        'pickup_map_url',
     ];
 
     protected function casts(): array

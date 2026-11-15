@@ -18,7 +18,7 @@ Hi {{ $order->customer->name }}, here's what's coming:
 @if ($order->fulfilment === \App\Models\Order::FULFILMENT_DELIVERY)
 **Delivery** to {{ $order->customer->address }}{{ $order->customer->suburb ? ', '.$order->customer->suburb : '' }}.
 @else
-**Pickup** — collect during today's pickup window.
+**Pickup** — collect during today's pickup window from {{ \App\Models\GlobalSetting::current()->pickup_address }}.
 @endif
 
 You can change or cancel this order until the day's cutoff. Manage your order with the link below — anyone with it can edit or cancel, so keep it to yourself.

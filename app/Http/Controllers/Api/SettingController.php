@@ -28,6 +28,8 @@ class SettingController extends Controller
             'store_phone' => $settings->store_phone,
             'store_phone_alternate' => $settings->store_phone_alternate,
             'store_email' => $settings->store_email,
+            'pickup_address' => $settings->pickup_address,
+            'pickup_map_url' => $settings->pickup_map_url,
         ], 'Store settings');
     }
 }
