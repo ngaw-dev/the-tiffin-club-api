@@ -58,9 +58,13 @@ Public store settings. Read-only.
   "pickup_end_time": "19:00",
   "store_phone": "021 123 4567",
   "store_phone_alternate": "04 555 1234",
-  "store_email": "hello@thetiffinclub.co.nz"
+  "store_email": "hello@thetiffinclub.co.nz",
+  "pickup_address": "123 Cuba Street, Te Aro, Wellington",
+  "pickup_map_url": "https://maps.example.com/..."
 }
 ```
+
+`pickup_map_url` is nullable (a maps deep link for the pickup address).
 
 ## Menu
 
