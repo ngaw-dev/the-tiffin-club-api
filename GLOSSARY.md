@@ -14,5 +14,5 @@
 - **Order Lookup**: A knowledge-based check — the Manage Token plus the email or phone used at checkout — that returns the order only when the contact matches. Every failure (bad token, expired token, wrong contact) answers identically.
 - **Contact Details**: Every order is placed with a name plus at least one of email or phone; these identify the Customer. Email is stored lowercase, phone normalized.
 - **Customer**: The person placing orders. Identified by email or phone — at least one must be present, each unique when present. Carries the default delivery address. Found or created silently at checkout from the submitted contact details; when an order's email and phone match different customers, the email match wins.
-- **Account**: Optional email/password credential. Sees past orders and prefills details. An Account belongs to a Customer; orders link to the Customer directly.
+- **Account**: A Clerk identity. Linked to a Customer purely by verified email address — no identifier is stored locally. Sees past orders (My Orders) and prefills details. Guest ordering is unaffected; the Manage Token remains the sole handle for managing a day's order.
 - **Guest**: A customer who orders without an account, identified only by their Manage Token.
