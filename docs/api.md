@@ -33,6 +33,10 @@ Every response uses the same envelope:
 - All amounts are **cents** (`1600` = $16.00).
 - All dates/times are computed in `Pacific/Auckland`. Timestamps are ISO-8601; menu/ordering times are `HH:mm`.
 
+### Simulated time (non-production only)
+
+For QA/staging, any API request may carry `X-Simulated-Time: <ISO-8601 datetime>` (e.g. `2026-11-16T22:45:00+13:00`). The server treats that instant as "now" for every time-based rule (ordering window, today's menu, token expiry) and echoes the effective time back in the `X-App-Time-Now` response header. Unparseable value → **400**. The header is ignored entirely when `APP_ENV=production`.
+
 ### Domain notes
 
 - An order is linked to a **Customer** resolved from the submitted email/phone (find-or-create; when both match different customers, the email match wins). Email is stored lowercase, phone digits-only. Name, address and suburb live on the customer — the API always returns the customer's current details.

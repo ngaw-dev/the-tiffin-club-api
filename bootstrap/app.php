@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ClerkAuthentication;
+use App\Http\Middleware\SimulatedTime;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->api(prepend: [SimulatedTime::class]);
         $middleware->throttleApi();
         $middleware->alias([
             'clerk.auth' => ClerkAuthentication::class,
