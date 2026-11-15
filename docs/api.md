@@ -74,8 +74,8 @@ Today's published menu plus the ordering window. Clients never compute open/clos
 {
   "status": "open",
   "date": "2026-11-15",
-  "main": { "name": "Butter Chicken", "description": "...", "price": 1600 },
-  "extras": [{ "name": "Garlic Naan", "description": null, "price": 400 }],
+  "main": { "id": 12, "name": "Butter Chicken", "description": "...", "price": 1600 },
+  "extras": [{ "id": 13, "name": "Garlic Naan", "description": null, "price": 400 }],
   "ordering": {
     "state": "open",
     "open": true,

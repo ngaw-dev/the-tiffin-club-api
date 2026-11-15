@@ -25,6 +25,7 @@ test('customer can fetch today\'s published menu', function () {
         ->assertJsonPath('success', true)
         ->assertJsonPath('data.status', 'open')
         ->assertJsonPath('data.main.name', $menu->items->firstWhere('type', MenuItem::TYPE_MAIN)->name)
+        ->assertJsonPath('data.main.id', $menu->items->firstWhere('type', MenuItem::TYPE_MAIN)->id)
         ->assertJsonCount(2, 'data.extras');
 
     expect($response->json('data.main.price'))
