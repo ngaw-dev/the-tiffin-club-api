@@ -1,7 +1,8 @@
 <?php
 
-use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\MyAccountController;
+use App\Http\Controllers\Api\MyOrdersController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\OrderLookupController;
 use App\Http\Controllers\Api\SettingController;
@@ -16,10 +17,9 @@ Route::prefix('v1')->group(function () {
     Route::patch('/orders/{token}', [OrderController::class, 'update'])->name('orders.update');
     Route::delete('/orders/{token}', [OrderController::class, 'destroy'])->name('orders.destroy');
 
-    Route::post('/account/register', [AccountController::class, 'register'])->middleware('throttle:10,1')->name('account.register');
-    Route::post('/account/login', [AccountController::class, 'login'])->middleware('throttle:10,1')->name('account.login');
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::get('/account/orders', [AccountController::class, 'orders'])->name('account.orders');
-        Route::get('/account/prefill', [AccountController::class, 'prefill'])->name('account.prefill');
+    Route::middleware('clerk.auth')->group(function () {
+        Route::get('/my-account', [MyAccountController::class, 'show'])->name('my-account.show');
+        Route::patch('/my-account', [MyAccountController::class, 'update'])->name('my-account.update');
+        Route::get('/my-orders', [MyOrdersController::class, 'index'])->name('my-orders.index');
     });
 });
