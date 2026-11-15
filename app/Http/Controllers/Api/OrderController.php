@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\PlaceOrderRequest;
 use App\Http\Requests\Api\UpdateOrderRequest;
 use App\Http\Resources\OrderResource;
+use App\Services\ClerkTokenService;
 use App\Services\OrderNoLongerAvailable;
 use App\Services\OrderNotFound;
 use App\Services\OrderService;
@@ -17,14 +18,21 @@ class OrderController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly OrderService $orders) {}
+    public function __construct(
+        private readonly OrderService $orders,
+        private readonly ClerkTokenService $clerkTokens,
+    ) {}
 
     /**
-     * Place a guest order for today's meal. Returns the manage token —
-     * the sole handle on the order.
+     * Place an order for today's meal. Public for guests; when a
+     * valid Clerk Bearer JWT is presented the payload email must
+     * match it, and the order links to the email-matched customer.
+     * Returns the manage token — the sole handle on the order.
      */
     public function store(PlaceOrderRequest $request): JsonResponse
     {
+        $this->clerkTokens->assertPayloadEmailMatches($request, $request->validated('email'));
+
         return $this->successResponse(
             new OrderResource($this->orders->place($request)->load('items.menuItem', 'customer')),
             'Order placed — pay in person',
@@ -39,7 +47,6 @@ class OrderController extends Controller
             'Here\'s your order',
         ));
     }
-
 
     public function update(UpdateOrderRequest $request, string $token): JsonResponse
     {
