@@ -8,6 +8,7 @@ use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Services\OrderingWindowService;
+use Firebase\JWT\JWT;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,6 +61,29 @@ afterEach(function () {
 
 it('rejects a request without a bearer token', function () {
     getJson('/api/v1/my-account')->assertUnauthorized();
+});
+
+it('returns 401, not 500, for a malformed bearer token', function () {
+    getJson('/api/v1/my-account', ['Authorization' => 'Bearer not-a-real-jwt'])
+        ->assertUnauthorized();
+});
+
+it('returns 401 for a token signed by the wrong key', function () {
+    $forged = JWT::encode([
+        'iss' => ClerkJwt::ISSUER,
+        'azp' => ClerkJwt::ORIGIN,
+        'exp' => time() + 3600,
+        'email' => 'amol@example.com',
+        'email_verified' => true,
+    ], str_repeat('x', 64), 'HS256');
+
+    getJson('/api/v1/my-account', ['Authorization' => 'Bearer '.$forged])
+        ->assertUnauthorized();
+});
+
+it('returns 401, not 500, for an invalid bearer token on order placement', function () {
+    postJson('/api/v1/orders', [], ['Authorization' => 'Bearer garbage'])
+        ->assertUnauthorized();
 });
 
 it('rejects a token with an unverified email claim', function () {

@@ -22,4 +22,15 @@ class UpdateCustomerRequest extends FormRequest
             'suburb' => ['sometimes', 'nullable', Rule::in(GlobalSetting::current()->delivery_suburbs)],
         ];
     }
+
+    /**
+     * Normalize the phone to digits only — the same canonical form
+     * checkout stores — so the unique rule compares like with like.
+     */
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('phone') && $this->input('phone') !== null) {
+            $this->merge(['phone' => preg_replace('/\D+/', '', (string) $this->input('phone'))]);
+        }
+    }
 }

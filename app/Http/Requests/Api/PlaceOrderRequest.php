@@ -5,6 +5,7 @@ namespace App\Http\Requests\Api;
 use App\Models\GlobalSetting;
 use App\Models\Menu;
 use App\Models\Order;
+use App\Services\ClerkTokenService;
 use App\Services\MenuService;
 use App\Services\OrderingWindowService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -18,6 +19,10 @@ class PlaceOrderRequest extends FormRequest
 
     public function authorize(): bool
     {
+        // A presented-but-invalid Clerk token is a 401 before any
+        // payload validation; no token at all means the guest flow.
+        app(ClerkTokenService::class)->assertTokenValidIfPresent($this);
+
         return true;
     }
 

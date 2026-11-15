@@ -24,9 +24,15 @@ class MyOrdersController extends Controller
     {
         $customer = $request->user();
 
+        if ($customer === null) {
+            return $this->successResponse(
+                OrderResource::collection([]),
+                'Here are your orders',
+            );
+        }
+
         $orders = Order::query()
-            ->when($customer, fn ($query) => $query->where('customer_id', $customer->id))
-            ->when($customer === null, fn ($query) => $query->whereRaw('1 = 0'))
+            ->where('customer_id', $customer->id)
             ->with('items.menuItem', 'customer')
             ->orderByDesc('placed_at')
             ->orderByDesc('id')

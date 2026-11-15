@@ -41,7 +41,14 @@ class ClerkTokenService
             return null;
         }
 
-        $claims = JWT::decode($token, $this->keySet());
+        try {
+            $claims = JWT::decode($token, $this->keySet());
+        } catch (\RuntimeException $e) {
+            // Signature, expiry, format — any invalid token is a 401,
+            // never a 500.
+            throw new UnauthorizedHttpException('Bearer', 'Invalid token.', $e);
+        }
+
         $this->assertClaims($claims);
 
         if (($claims->email_verified ?? false) !== true || empty($claims->email)) {
@@ -59,6 +66,18 @@ class ClerkTokenService
         return Customer::query()
             ->where('email', strtolower((string) $claims->email))
             ->first();
+    }
+
+    /**
+     * Verify a presented bearer token (if any) so an invalid token is
+     * rejected with 401 even on public endpoints; absent tokens are
+     * fine — that is the guest flow.
+     */
+    public function assertTokenValidIfPresent(Request $request): void
+    {
+        if ($request->bearerToken() !== null) {
+            $this->claimsFrom($request);
+        }
     }
 
     /**
@@ -81,17 +100,6 @@ class ClerkTokenService
         }
     }
 
-    /**
-     * @return object{iss?: string, azp?: string, email?: string, email_verified?: bool}
-     */
-    private function verifyToken(string $token): object
-    {
-        $claims = JWT::decode($token, $this->keySet());
-        $this->assertClaims($claims);
-
-        return $claims;
-    }
-
     private function keySet(): CachedKeySet
     {
         return new CachedKeySet(
@@ -100,8 +108,13 @@ class ClerkTokenService
             app(HttpFactory::class),
             $this->psr6Cache(),
             null,
-            (int) config('clerk.cache_seconds', 600),
+            $this->cacheSeconds(),
         );
+    }
+
+    private function cacheSeconds(): int
+    {
+        return (int) config('clerk.cache_seconds', 600);
     }
 
     /**
@@ -109,9 +122,9 @@ class ClerkTokenService
      */
     private function psr6Cache(): CacheItemPoolInterface
     {
-        return new class($this->cache) implements CacheItemPoolInterface
+        return new class($this->cacheSeconds(), $this->cache) implements CacheItemPoolInterface
         {
-            public function __construct(private readonly CacheRepository $cache) {}
+            public function __construct(private readonly int $cacheSeconds, private readonly CacheRepository $cache) {}
 
             public function getItem(string $key): CacheItemInterface
             {
@@ -192,7 +205,7 @@ class ClerkTokenService
             public function save(CacheItemInterface $item): bool
             {
                 /** @var object{stored: mixed} $item */
-                return $this->cache->put($item->getKey(), $item->stored, 600);
+                return $this->cache->put($item->getKey(), $item->stored, $this->cacheSeconds);
             }
 
             public function saveDeferred(CacheItemInterface $item): bool
