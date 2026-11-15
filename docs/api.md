@@ -35,7 +35,7 @@ Every response uses the same envelope:
 
 ### Domain notes
 
-- An order is linked to a **Customer** resolved from the submitted email/phone (find-or-create; when both match different customers, the email match wins). Email is stored lowercase, phone digits-only.
+- An order is linked to a **Customer** resolved from the submitted email/phone (find-or-create; when both match different customers, the email match wins). Email is stored lowercase, phone digits-only. Name, address and suburb live on the customer — the API always returns the customer's current details.
 - The **manage token** returned at placement is the sole handle to view/edit/cancel an order.
 - Orders can be edited or cancelled by the customer only until the day's **cutoff time**.
 - Placing an order fires an `OrderPlaced` event after the transaction commits; a queued listener sends the confirmation email. Both outcomes (sent, skipped-no-email) are recorded in the order's internal audit trail (`order_updates`, actor `system`) — internal only, not exposed via the API.
@@ -105,13 +105,15 @@ Returned by every order endpoint (place, lookup, show, update, cancel):
 ```json
 {
   "manage_token": "<64 hex chars>",
-  "status": "placed",
+  "status": "confirmed",
   "fulfilment": "delivery",
-  "name": "Amol W",
-  "email": "amol@example.com",
-  "phone": "0211234567",
-  "address": "12 Cuba Street",
-  "suburb": "Te Aro",
+  "customer": {
+    "name": "Amol W",
+    "email": "amol@example.com",
+    "phone": "0211234567",
+    "address": "12 Cuba Street",
+    "suburb": "Te Aro"
+  },
   "delivery_notes": "Knock twice",
   "items": [
     { "name": "Butter Chicken", "quantity": 2, "unit_price": 1600, "line_total": 3200 }
@@ -127,8 +129,7 @@ Returned by every order endpoint (place, lookup, show, update, cancel):
 |-------|-------|
 | `status` | `placed` \| `confirmed` \| `ready_for_pickup` \| `out_for_delivery` \| `completed` \| `cancelled` — orders are returned as `confirmed` immediately on placement (auto-confirm; manual staff confirmation to come) |
 | `fulfilment` | `pickup` \| `delivery` |
-| `name`, `address`, `suburb` | Snapshots taken at placement |
-| `email`, `phone` | Live from the linked customer |
+| `customer` | Live customer details at read time (not a placement snapshot) — absent if the relation isn't eager-loaded |
 | `delivery_notes` | Free-text notes for the driver (e.g. access instructions) |
 | `total` | Server-computed at menu prices, cents |
 | `expires_at` | The manage token's lifetime ends here — 23:59:59 on the order day |

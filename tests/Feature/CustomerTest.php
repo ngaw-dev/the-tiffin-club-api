@@ -50,8 +50,8 @@ it('creates a customer from a first order and links it', function () {
 
     $order = $customer->orders()->first();
     expect($order->delivery_notes)->toBe('Knock twice')
-        ->and($order->name)->toBe('Amol W')
-        ->and($order->address)->toBe('12 Cuba Street');
+        ->and($order->customer->name)->toBe('Amol W')
+        ->and($order->customer->address)->toBe('12 Cuba Street');
 });
 
 it('reuses the existing customer on a repeat order', function () {

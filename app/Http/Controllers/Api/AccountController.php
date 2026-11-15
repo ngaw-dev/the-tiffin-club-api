@@ -73,11 +73,11 @@ class AccountController extends Controller
         $latest = $this->ordersFor($request->user())->first();
 
         return $this->successResponse([
-            'name' => $latest?->name,
+            'name' => $latest?->customer?->name,
             'email' => $request->user()->email,
             'phone' => $latest?->customer?->phone,
-            'address' => $latest?->address,
-            'suburb' => $latest?->suburb,
+            'address' => $latest?->customer?->address,
+            'suburb' => $latest?->customer?->suburb,
         ], 'Here are your details');
     }
 

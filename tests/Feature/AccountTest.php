@@ -96,7 +96,7 @@ it('lists an account\'s orders including guest orders placed before the account 
     getJson('/api/v1/account/orders', ['Authorization' => "Bearer {$token}"])
         ->assertOk()
         ->assertJsonCount(1, 'data')
-        ->assertJsonPath('data.0.email', 'amol@example.com');
+        ->assertJsonPath('data.0.customer.email', 'amol@example.com');
 });
 
 it('does not list other people\'s orders', function () {

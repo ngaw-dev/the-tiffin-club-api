@@ -7,7 +7,7 @@ use App\Models\Order;
 <x-mail::message>
 # Your tiffin order is confirmed
 
-Hi {{ $order->name }}, here's what's coming:
+Hi {{ $order->customer->name }}, here's what's coming:
 
 @foreach ($order->items as $item)
 - {{ $item->quantity }} × {{ $item->menuItem?->name }} — ${{ number_format($item->quantity * $item->unit_price / 100, 2) }}
@@ -16,7 +16,7 @@ Hi {{ $order->name }}, here's what's coming:
 **Total: ${{ number_format($order->total / 100, 2) }}** — pay in person.
 
 @if ($order->fulfilment === \App\Models\Order::FULFILMENT_DELIVERY)
-**Delivery** to {{ $order->address }}, {{ $order->suburb }}.
+**Delivery** to {{ $order->customer->address }}{{ $order->customer->suburb ? ', '.$order->customer->suburb : '' }}.
 @else
 **Pickup** — collect during today's pickup window.
 @endif

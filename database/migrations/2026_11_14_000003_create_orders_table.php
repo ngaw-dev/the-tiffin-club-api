@@ -15,9 +15,6 @@ return new class extends Migration
             $table->string('status')->default('confirmed');
             $table->string('fulfilment'); // pickup|delivery
             $table->foreignId('customer_id')->constrained()->cascadeOnDelete();
-            $table->string('name'); // snapshot at placement
-            $table->string('address')->nullable(); // snapshot at placement
-            $table->string('suburb')->nullable(); // snapshot at placement
             $table->text('delivery_notes')->nullable();
             $table->unsignedInteger('total')->default(0); // cents
             $table->timestamp('placed_at');
