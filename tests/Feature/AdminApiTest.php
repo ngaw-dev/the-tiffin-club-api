@@ -179,6 +179,16 @@ it('blocks cancelling a partially-paid order', function (): void {
     expect($order->fresh()->status)->toBe('confirmed');
 });
 
+it('still allows forward transitions on a paid order', function (): void {
+    $token = adminToken();
+    $order = Order::factory()->create(['total' => 5000, 'status' => 'confirmed']);
+    Payment::factory()->create(['order_id' => $order->id, 'amount' => 2000]);
+
+    patchJson("/api/v1/admin/orders/{$order->id}", ['status' => 'ready_for_pickup'], ['Authorization' => "Bearer $token"])
+        ->assertOk()
+        ->assertJsonPath('data.status', 'ready_for_pickup');
+});
+
 it('cancels an unpaid order as before', function (): void {
     $token = adminToken();
     $order = Order::factory()->create(['status' => 'confirmed']);
