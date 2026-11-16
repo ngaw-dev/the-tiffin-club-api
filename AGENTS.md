@@ -156,4 +156,14 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Rerun a test after each change to it.
 - Run `vendor/bin/pest` to call the test runner directly. It accepts the same file path and `--filter=testName` arguments.
 
+=== skills rules ===
+
+# Skill Pairing
+
+- When using the `grilling` skill to stress-test a plan or decision, also consult the `ponytail` skill (lazy senior dev mindset) so the grilling is checked against the smallest-change principle.
+
+# Commits
+
+- Commit code changes at each logical step (a coherent, working increment), with a clear commit message — not one large commit at the end.
+
 </laravel-boost-guidelines>

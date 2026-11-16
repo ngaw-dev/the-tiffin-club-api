@@ -160,6 +160,14 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 ## Agent skills
 
+### Skill pairing
+
+- When using the `grilling` skill to stress-test a plan or decision, also consult the `ponytail` skill (lazy senior dev mindset) so the grilling is checked against the smallest-change principle.
+
+### Commits
+
+- Commit code changes at each logical step (a coherent, working increment), with a clear commit message — not one large commit at the end.
+
 ### Issue tracker
 
 Issues are tracked as local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.

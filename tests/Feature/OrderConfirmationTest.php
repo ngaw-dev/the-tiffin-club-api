@@ -1,5 +1,10 @@
 <?php
 
+use App\Mail\OrderConfirmationMail;
+use App\Mail\OrderSummaryMail;
+use App\Models\GlobalSetting;
+use App\Models\Menu;
+use App\Models\MenuItem;
 use App\Models\OrderUpdate;
 use App\Services\OrderingWindowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -10,13 +15,13 @@ use function Pest\Laravel\postJson;
 
 uses(RefreshDatabase::class);
 
-function placeableMenu(): \App\Models\Menu
+function placeableMenu(): Menu
 {
-    $menu = \App\Models\Menu::factory()->published()->create([
+    $menu = Menu::factory()->published()->create([
         'published_at' => today(OrderingWindowService::TIMEZONE)->setTime(8, 0),
         'cutoff_time' => '11:00',
     ]);
-    \App\Models\MenuItem::factory()->main()->create(['menu_id' => $menu->id, 'price' => 1600]);
+    MenuItem::factory()->main()->create(['menu_id' => $menu->id, 'price' => 1600]);
 
     return $menu;
 }
@@ -34,7 +39,8 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-it('emails a confirmation when the order has an email', function () {
+it('emails the customer and the store owner when an order is placed', function () {
+    GlobalSetting::set('store_email', 'owner@tiffin.test');
     $main = $this->menu->items->first();
 
     postJson('/api/v1/orders', [
@@ -44,13 +50,16 @@ it('emails a confirmation when the order has an email', function () {
         'items' => [['id' => $main->id, 'quantity' => 1]],
     ])->assertCreated();
 
-    Mail::assertQueued(\App\Mail\OrderConfirmationMail::class, 1);
+    Mail::assertQueued(OrderConfirmationMail::class, 1);
+    Mail::assertQueued(OrderSummaryMail::class, 1); // owner
 
     expect(OrderUpdate::query()->where('action', 'confirmation_sent')->count())->toBe(1)
-        ->and(OrderUpdate::query()->where('action', 'confirmation_skipped')->count())->toBe(0);
+        ->and(OrderUpdate::query()->where('action', 'confirmation_skipped')->count())->toBe(0)
+        ->and(OrderUpdate::query()->where('action', 'owner_notified')->count())->toBe(1);
 });
 
 it('skips and audits the confirmation when the customer has no email', function () {
+    GlobalSetting::set('store_email', null);
     $main = $this->menu->items->first();
 
     postJson('/api/v1/orders', [
@@ -60,13 +69,14 @@ it('skips and audits the confirmation when the customer has no email', function 
         'items' => [['id' => $main->id, 'quantity' => 1]],
     ])->assertCreated();
 
-    Mail::assertNothingQueued();
+    Mail::assertNotQueued(OrderSummaryMail::class); // no customer email; owner skipped too (no store email set)
 
     $skip = OrderUpdate::query()->where('action', 'confirmation_skipped')->first();
     expect($skip)->not->toBeNull()
         ->and($skip->actor)->toBe(OrderUpdate::ACTOR_SYSTEM)
         ->and($skip->changes)->toBe(['channel' => 'email', 'reason' => 'no_email'])
-        ->and(OrderUpdate::query()->where('action', 'confirmation_sent')->count())->toBe(0);
+        ->and(OrderUpdate::query()->where('action', 'confirmation_sent')->count())->toBe(0)
+        ->and(OrderUpdate::query()->where('action', 'owner_notified_skipped')->count())->toBe(1);
 });
 
 it('audits confirmation_sent with actor system', function () {

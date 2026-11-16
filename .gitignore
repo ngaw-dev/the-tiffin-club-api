@@ -33,3 +33,4 @@ blog.md
 .agents
 .claude
 .pi
+*.sql

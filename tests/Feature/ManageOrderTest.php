@@ -1,11 +1,15 @@
 <?php
 
+use App\Mail\OrderSummaryMail;
+use App\Models\GlobalSetting;
 use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Models\Order;
+use App\Models\OrderUpdate;
 use App\Services\OrderingWindowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 
 use function Pest\Laravel\deleteJson;
 use function Pest\Laravel\getJson;
@@ -35,6 +39,11 @@ function placedOrder(array $menuAttrs = []): array
 
     return [$response->json('data.manage_token'), $main, $extra];
 }
+
+beforeEach(function () {
+    config(['queue.default' => 'sync']);
+    Mail::fake();
+});
 
 afterEach(function () {
     Carbon::setTestNow();
@@ -69,7 +78,37 @@ it('edits an order in place until cutoff and appends to the audit trail', functi
         ->assertJsonPath('data.total', 3600)
         ->assertJsonPath('data.items.0.quantity', 2);
 
-    expect(Order::where('manage_token', $token)->first()->audits)->toHaveCount(3); // placed + confirmation_sent + edited
+    expect(Order::where('manage_token', $token)->first()->audits)->toHaveCount(6); // placed + confirmation_sent + owner_notified + edited + customer change email + owner_notified
+});
+
+it('emails the customer and the store owner when an order is updated', function () {
+    [$token, $main] = placedOrder();
+    GlobalSetting::set('store_email', 'owner@tiffin.test');
+
+    patchJson("/api/v1/orders/{$token}", ['items' => [['id' => $main->id, 'quantity' => 2]]])
+        ->assertOk();
+
+    Mail::assertQueued(OrderSummaryMail::class, 3); // owner (placed) + customer + owner (updated)
+});
+
+it('emails the customer and the store owner when an order is cancelled', function () {
+    [$token] = placedOrder();
+    GlobalSetting::set('store_email', 'owner@tiffin.test');
+
+    deleteJson("/api/v1/orders/{$token}")->assertOk();
+
+    Mail::assertQueued(OrderSummaryMail::class, 3); // owner (placed) + customer + owner (cancelled)
+});
+
+it('skips the owner email with an audit entry when no store email is set', function () {
+    GlobalSetting::set('store_email', null);
+    [$token, $main] = placedOrder();
+
+    patchJson("/api/v1/orders/{$token}", ['items' => [['id' => $main->id, 'quantity' => 2]]])
+        ->assertOk();
+
+    Mail::assertQueued(OrderSummaryMail::class, 1); // customer only (update); placement + update owner emails both skipped
+    expect(OrderUpdate::query()->where('action', 'owner_notified_skipped')->count())->toBe(2);
 });
 
 it('cannot edit an order after cutoff', function () {

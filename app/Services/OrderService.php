@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Events\OrderChanged;
 use App\Events\OrderPlaced;
 use App\Http\Requests\Api\PlaceOrderRequest;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderUpdate;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -96,7 +98,7 @@ class OrderService
             // lookup above; the unique index decides, the loser re-fetches.
             try {
                 $customer->save();
-            } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            } catch (UniqueConstraintViolationException) {
                 $customer = Customer::query()
                     ->when($email !== '', fn ($q) => $q->where('email', $email))
                     ->when($email === '' && $phone !== '', fn ($q) => $q->where('phone', $phone))
@@ -226,6 +228,8 @@ class OrderService
 
             $this->recordAudit($order, OrderUpdate::ACTION_EDITED, $changes);
 
+            DB::afterCommit(fn () => OrderChanged::dispatch($order, 'updated'));
+
             return $order->refresh();
         });
     }
@@ -242,6 +246,8 @@ class OrderService
             $order->save();
 
             $this->recordAudit($order, OrderUpdate::ACTION_CANCELLED, null);
+
+            DB::afterCommit(fn () => OrderChanged::dispatch($order, 'cancelled'));
 
             return $order->refresh();
         });

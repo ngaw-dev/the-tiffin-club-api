@@ -28,6 +28,10 @@ class OrderUpdate extends Model
 
     public const ACTION_CONFIRMATION_SKIPPED = 'confirmation_skipped';
 
+    public const ACTION_OWNER_NOTIFIED = 'owner_notified';
+
+    public const ACTION_OWNER_NOTIFIED_SKIPPED = 'owner_notified_skipped';
+
     protected $fillable = [
         'order_id',
         'actor',
