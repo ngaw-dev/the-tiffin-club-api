@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ClerkAuthentication;
 use App\Http\Middleware\SimulatedTime;
+use App\Http\Middleware\StaffEmailMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->throttleApi();
         $middleware->alias([
             'clerk.auth' => ClerkAuthentication::class,
+            'staff.email' => StaffEmailMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

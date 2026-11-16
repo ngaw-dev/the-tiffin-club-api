@@ -17,4 +17,4 @@
 - **Account**: A Clerk identity. Linked to a Customer purely by verified email address — no identifier is stored locally. Sees past orders (My Orders) and prefills details. Guest ordering is unaffected; the Manage Token remains the sole handle for managing a day's order.
 - **Guest**: A customer who orders without an account, identified only by their Manage Token.
 - **Payment**: A record of money collected in person for an order. Multiple partial payments may be recorded per order; the outstanding balance is the Order Total minus payments recorded. Payments never change the order's status.
-- **Staff**: An operator who manages orders (status changes, payment collection). Identified by email allowlist — not a Customer or Account, and not a database flag.
+- **Staff**: An operator who manages orders (status changes, payment collection). Identified by email allowlist — not a Customer or Account, and not a database flag. The admin API calls this role **Admin**; same people, same allowlist.
