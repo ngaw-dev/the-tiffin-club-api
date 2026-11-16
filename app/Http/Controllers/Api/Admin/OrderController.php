@@ -58,6 +58,14 @@ class OrderController extends Controller
             ])],
         ]);
 
+        if ($validated['status'] === Order::STATUS_CANCELLED && $order->payments()->sum('amount') > 0) {
+            return $this->errorResponse(
+                errors: 'This order has recorded payments and can\'t be cancelled. Contact the store to resolve payment.',
+                message: 'Order not cancelled',
+                statusCode: 422,
+            );
+        }
+
         DB::transaction(function () use ($order, $validated): void {
             $changes = $order->status !== $validated['status']
                 ? ['status' => ['from' => $order->status, 'to' => $validated['status']]]

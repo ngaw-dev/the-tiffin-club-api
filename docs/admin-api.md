@@ -17,7 +17,7 @@ All other endpoints require `Authorization: Bearer <token>` and return **401** w
 
 - Responses use the app's standard envelope: `{ success, message, data }`; lists are `{ data: { resource, links, meta } }`.
 - List endpoints support Spatie Query Builder params: `?filter[...]=`, `?sort=` (prefix `-` for descending), `?page=`, `?per_page=` (default 15).
-- All money amounts are **integer cents**.
+- All money amounts are **integer cents** — in both requests and responses, including `POST /payments`.
 
 ## Orders
 
@@ -25,14 +25,14 @@ All other endpoints require `Authorization: Bearer <token>` and return **401** w
 |---|---|---|
 | GET | `/orders` | Filters: `status`, `fulfilment`, `customer_id`, `menu_id`. Sorts: `placed_at`, `total`. Default `-placed_at`. Includes customer + payments (with `paid` sum). |
 | GET | `/orders/{id}` | Includes items, payments, customer. |
-| PATCH | `/orders/{id}` | `{ "status": "..." }` — status only. Valid: `confirmed`, `ready_for_pickup`, `out_for_delivery`, `completed`, `cancelled`. Writes an audit entry (`status_changed`, actor `staff`). Order contents are immutable. |
+| PATCH | `/orders/{id}` | `{ "status": "..." }` — status only. Valid: `confirmed`, `ready_for_pickup`, `out_for_delivery`, `completed`, `cancelled`. 422 if cancelling an order with a recorded paid sum > 0 (payments are immutable; see ADR 0002). Order contents are immutable. Writes an audit entry (`status_changed`, actor `staff`). |
 
 ## Payments
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/payments` | Filters: `method`, `order_id`, `customer_id`. Sorts: `paid_at`, `amount`. Default `-paid_at`. |
-| POST | `/payments` | `{ "order_id": 1, "amount": 20.00 }` — records a manual cash payment (dollars in, cents stored). 422 if the amount exceeds the order's outstanding balance. |
+| POST | `/payments` | `{ "order_id": 1, "amount": 2000 }` — records a manual cash payment (cents). 422 if the amount exceeds the order's outstanding balance. |
 
 Refunds / marking payments failed are not supported.
 

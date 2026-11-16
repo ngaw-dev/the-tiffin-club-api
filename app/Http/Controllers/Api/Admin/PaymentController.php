@@ -41,18 +41,18 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => ['required', 'integer', 'min:1'],
         ]);
 
         $order = Order::query()->findOrFail($validated['order_id']);
 
-        if ($order->total - $order->payments()->sum('amount') < $validated['amount'] * 100) {
+        if ($order->total - $order->payments()->sum('amount') < $validated['amount']) {
             return $this->errorResponse(errors: 'Amount exceeds the order\'s outstanding balance', message: 'Payment rejected', statusCode: 422);
         }
 
         $payment = $order->payments()->create([
             'customer_id' => $order->customer_id,
-            'amount' => (int) round($validated['amount'] * 100),
+            'amount' => $validated['amount'],
             'method' => 'cash',
             'paid_at' => now(),
         ]);

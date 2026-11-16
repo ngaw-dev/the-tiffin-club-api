@@ -91,15 +91,27 @@ it('rejects an invalid order status', function (): void {
         ->assertUnprocessable();
 });
 
+it('blocks cancelling an order with recorded payments', function (): void {
+    $token = adminToken();
+    $order = Order::factory()->create();
+    Payment::factory()->create(['order_id' => $order->id]);
+
+    patchJson("/api/v1/admin/orders/{$order->id}", ['status' => 'cancelled'], ['Authorization' => "Bearer $token"])
+        ->assertUnprocessable()
+        ->assertJsonPath('success', false);
+
+    expect($order->fresh()->status)->not->toBe('cancelled');
+});
+
 it('records a manual payment and rejects overpayment', function (): void {
     $token = adminToken();
     $order = Order::factory()->create(['total' => 5000]);
 
-    postJson('/api/v1/admin/payments', ['order_id' => $order->id, 'amount' => 20.00], ['Authorization' => "Bearer $token"])
+    postJson('/api/v1/admin/payments', ['order_id' => $order->id, 'amount' => 2000], ['Authorization' => "Bearer $token"])
         ->assertCreated()
         ->assertJsonPath('data.amount', 2000);
 
-    postJson('/api/v1/admin/payments', ['order_id' => $order->id, 'amount' => 99.00], ['Authorization' => "Bearer $token"])
+    postJson('/api/v1/admin/payments', ['order_id' => $order->id, 'amount' => 9900], ['Authorization' => "Bearer $token"])
         ->assertUnprocessable();
 });
 
