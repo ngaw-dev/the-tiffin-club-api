@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Customer;
 use App\Models\Menu;
 use App\Models\Order;
 use App\Models\Payment;
@@ -32,7 +33,8 @@ it('blocks non-staff users from the orders page', function (): void {
 
 it('logs staff in and lists orders', function (): void {
     staffUser();
-    $order = Order::factory()->create();
+    // The orders page defaults to the delivery filter, so pin fulfilment
+    $order = Order::factory()->create(['fulfilment' => 'delivery']);
 
     post('/staff/login', ['email' => 'staff@admin.com', 'password' => 'password'])
         ->assertRedirect('/staff/orders');
@@ -92,4 +94,74 @@ it('rejects a payment above the outstanding amount', function (): void {
         ->assertSessionHasErrors('amount');
 
     expect(Payment::count())->toBe(0);
+});
+
+it('blocks non-staff users from the payments page', function (): void {
+    $intruder = User::factory()->create(['email' => 'random@example.com']);
+
+    actingAs($intruder)->get('/staff/payments')->assertForbidden();
+
+    get('/staff/payments')->assertForbidden();
+});
+
+it('summarises what each customer owes across their orders', function (): void {
+    staffUser();
+    $customer = Customer::create(['name' => 'Weekly Wanda', 'address' => '1 Elm St', 'suburb' => 'Testville']);
+
+    // Two open orders, partially paid once: owes 2000 + 1500 - 500 = 3000
+    $first = Order::factory()->create(['customer_id' => $customer->id, 'total' => 2000, 'menu_id' => Menu::factory(['menu_date' => today()])]);
+    $second = Order::factory()->create(['customer_id' => $customer->id, 'total' => 1500, 'menu_id' => Menu::factory(['menu_date' => today()->subDay()])]);
+    Payment::create(['order_id' => $first->id, 'customer_id' => $customer->id, 'amount' => 500, 'method' => 'cash', 'paid_at' => now()]);
+
+    actingAs(User::where('email', 'staff@admin.com')->first())
+        ->get('/staff/payments')
+        ->assertOk()
+        ->assertSee('Weekly Wanda')
+        ->assertSee('Owes: $30.00');
+});
+
+it('excludes cancelled orders from customer due and paid totals', function (): void {
+    staffUser();
+    $customer = Customer::create(['name' => 'Careful Carl', 'address' => '2 Elm St', 'suburb' => 'Testville']);
+
+    $open = Order::factory()->create(['customer_id' => $customer->id, 'total' => 1000, 'menu_id' => Menu::factory(['menu_date' => today()])]);
+    $cancelled = Order::factory()->create(['customer_id' => $customer->id, 'total' => 5000, 'status' => 'cancelled', 'menu_id' => Menu::factory(['menu_date' => today()->subDay()])]);
+    Payment::create(['order_id' => $cancelled->id, 'customer_id' => $customer->id, 'amount' => 2000, 'method' => 'cash', 'paid_at' => now()]);
+
+    actingAs(User::where('email', 'staff@admin.com')->first())
+        ->get('/staff/payments')
+        ->assertOk()
+        ->assertSee('Owes: $10.00')
+        ->assertDontSee('Credit:');
+});
+
+it('shows a credit badge when a customer has overpaid', function (): void {
+    staffUser();
+    $customer = Customer::create(['name' => 'Prepaid Priya', 'address' => '3 Elm St', 'suburb' => 'Testville']);
+
+    $order = Order::factory()->create(['customer_id' => $customer->id, 'total' => 1000, 'menu_id' => Menu::factory(['menu_date' => today()])]);
+    // Two payments on the same order: 600 + 600 = 1200 against a 1000 total
+    foreach ([600, 600] as $amount) {
+        Payment::create(['order_id' => $order->id, 'customer_id' => $customer->id, 'amount' => $amount, 'method' => 'cash', 'paid_at' => now()]);
+    }
+
+    actingAs(User::where('email', 'staff@admin.com')->first())
+        ->get('/staff/payments')
+        ->assertOk()
+        ->assertSee('Credit: $2.00');
+});
+
+it('lists customers with the largest outstanding balance first', function (): void {
+    staffUser();
+    $big = Customer::create(['name' => 'Big Balancer', 'address' => '4 Elm St', 'suburb' => 'Testville']);
+    $small = Customer::create(['name' => 'Small Saver', 'address' => '5 Elm St', 'suburb' => 'Testville']);
+
+    Order::factory()->create(['customer_id' => $big->id, 'total' => 9000, 'menu_id' => Menu::factory(['menu_date' => today()])]);
+    Order::factory()->create(['customer_id' => $small->id, 'total' => 1000, 'menu_id' => Menu::factory(['menu_date' => today()->addDay()])]);
+
+    $response = actingAs(User::where('email', 'staff@admin.com')->first())
+        ->get('/staff/payments');
+
+    $response->assertOk();
+    expect(strpos($response->getContent(), 'Big Balancer'))->toBeLessThan(strpos($response->getContent(), 'Small Saver'));
 });
