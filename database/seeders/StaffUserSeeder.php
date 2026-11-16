@@ -15,8 +15,10 @@ class StaffUserSeeder extends Seeder
     public function run(): void
     {
         User::query()->firstOrCreate(
-            ['email' => 'staff@admin.com'],
-            ['name' => 'Staff', 'password' => Hash::make('password')],
+            ['email' => 'admin@admin.com', 'name' => 'Admin', 'password' => Hash::make('password')],
+        );
+        User::query()->firstOrCreate(
+            ['email' => 'staff@admin.com', 'name' => 'Staff', 'password' => Hash::make('password')],
         );
     }
 }

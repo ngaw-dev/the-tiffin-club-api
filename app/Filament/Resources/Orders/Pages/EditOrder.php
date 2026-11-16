@@ -6,6 +6,7 @@ use App\Filament\Resources\Orders\OrderResource;
 use App\Models\OrderUpdate;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
 
 class EditOrder extends EditRecord
 {
@@ -18,18 +19,28 @@ class EditOrder extends EditRecord
         ];
     }
 
-    protected function beforeSave(): void
+    /**
+     * The record is only dirty after the parent applies the form
+     * data, so the audit diff happens here rather than beforeSave.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        $dirty = collect($this->record->getDirty())
+        $record = parent::handleRecordUpdate($record, $data);
+
+        $dirty = collect($record->getChanges())
             ->except(['updated_at'])
             ->all();
 
         if ($dirty !== []) {
-            $this->record->updates()->create([
+            $record->updates()->create([
                 'actor' => OrderUpdate::ACTOR_STAFF,
                 'action' => 'edited',
                 'changes' => $dirty,
             ]);
         }
+
+        return $record;
     }
 }
