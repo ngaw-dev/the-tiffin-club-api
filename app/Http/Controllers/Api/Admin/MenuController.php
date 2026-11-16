@@ -67,6 +67,14 @@ class MenuController extends Controller
 
     public function destroy(Menu $menu): JsonResponse
     {
+        if ($menu->orders()->exists()) {
+            return $this->errorResponse(
+                errors: 'This menu has orders attached and cannot be deleted.',
+                message: $this->getStatusMessage(409),
+                statusCode: 409,
+            );
+        }
+
         DB::transaction(function () use ($menu): void {
             $menu->items()->delete();
             $menu->delete();

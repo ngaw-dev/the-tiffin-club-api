@@ -52,8 +52,8 @@ Refunds / marking payments failed are not supported.
 | POST | `/menus` | `{ "menu_date": "YYYY-MM-DD", "cutoff_time": "HH:MM"? }` — unique date. |
 | GET | `/menus/{id}` | Includes items. |
 | PATCH | `/menus/{id}` | `menu_date`, `cutoff_time`, and/or `publish: true/false` (sets/clears `published_at`). |
-| DELETE | `/menus/{id}` | Deletes the menu and its items (orders keep snapshot prices). Does not delete orders. |
-| POST | `/menus/{id}/items` | `{ type, name, description?, price, sort_order? }` — `type`: `main` \| `extra`. |
+| DELETE | `/menus/{id}` | Deletes the menu and its items. **409 Conflict** if any order references the menu. |
+| POST | `/menus/{id}/items` | `{ type, name, description?, price, sort_order? }` — `type`: `main` \| `extra`; `price` in cents. |
 | PATCH | `/menus/{id}/items/{itemId}` | Same fields, all optional. |
 | DELETE | `/menus/{id}/items/{itemId}` | Safe for existing orders — `order_items` snapshot `unit_price`. |
 
@@ -66,6 +66,8 @@ Refunds / marking payments failed are not supported.
 
 ## Notes
 
-- The legacy staff web panel (`/staff/*`) remains in place and untouched.
+- The legacy staff web panel (`/staff/*`) remains in place and untouched; its settle form still submits dollars (admin API is cents-only).
 - The Filament panel at `/admin` is unrelated to this API (`/api/v1/admin`).
+- Payment records are immutable — no edit/refund/delete/fail endpoints, by design (ADR: `docs/adr/0002-payments-are-immutable.md`).
+- The cancel block applies to the admin API; the customer token endpoints are governed by the same ADR.
 - Tests: `tests/Feature/AdminApiTest.php`.

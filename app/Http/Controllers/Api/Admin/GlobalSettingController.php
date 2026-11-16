@@ -35,6 +35,17 @@ class GlobalSettingController extends Controller
 
     public function update(Request $request): JsonResponse
     {
+        $unknown = array_diff(array_keys($request->all()), array_keys(GlobalSetting::KEYS));
+
+        if ($unknown !== []) {
+            abort(response()->json([
+                'message' => 'Unknown settings key(s): '.implode(', ', $unknown).'.',
+                'errors' => collect($unknown)
+                    ->mapWithKeys(fn (string $key): array => [$key => ['The '.$key.' field is not a recognized setting.']])
+                    ->all(),
+            ], 422));
+        }
+
         $rules = collect(GlobalSetting::KEYS)
             ->map(fn (): array => ['sometimes'])
             ->merge([

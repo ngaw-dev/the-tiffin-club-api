@@ -58,6 +58,14 @@ class OrderController extends Controller
             ])],
         ]);
 
+        if ($validated['status'] !== $order->status && ! $order->canTransitionTo($validated['status'])) {
+            return $this->errorResponse(
+                errors: "An order can't move from {$order->status} to {$validated['status']}.",
+                message: 'Order not updated',
+                statusCode: 422,
+            );
+        }
+
         if ($validated['status'] === Order::STATUS_CANCELLED && $order->payments()->sum('amount') > 0) {
             return $this->errorResponse(
                 errors: 'This order has recorded payments and can\'t be cancelled. Contact the store to resolve payment.',
@@ -67,9 +75,11 @@ class OrderController extends Controller
         }
 
         DB::transaction(function () use ($order, $validated): void {
-            $changes = $order->status !== $validated['status']
-                ? ['status' => ['from' => $order->status, 'to' => $validated['status']]]
-                : null;
+            if ($order->status === $validated['status']) {
+                return;
+            }
+
+            $changes = ['status' => ['from' => $order->status, 'to' => $validated['status']]];
             $order->status = $validated['status'];
             $order->save();
 

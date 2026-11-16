@@ -42,6 +42,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'order_id' => ['required', 'integer', 'exists:orders,id'],
             'amount' => ['required', 'integer', 'min:1'],
+            'method' => ['nullable', 'string', 'in:cash'],
         ]);
 
         $order = Order::query()->findOrFail($validated['order_id']);
@@ -53,7 +54,7 @@ class PaymentController extends Controller
         $payment = $order->payments()->create([
             'customer_id' => $order->customer_id,
             'amount' => $validated['amount'],
-            'method' => 'cash',
+            'method' => $validated['method'] ?? 'cash',
             'paid_at' => now(),
         ]);
 
