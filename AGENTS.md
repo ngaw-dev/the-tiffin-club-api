@@ -166,4 +166,8 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 - Commit code changes at each logical step (a coherent, working increment), with a clear commit message — not one large commit at the end.
 
+### API docs
+
+- Any code change that affects the API (routes, request/response shapes, validation, filters, auth behavior) must update `docs/admin-api.md` (admin API) and any other doc covering the changed endpoint, in the same commit.
+
 </laravel-boost-guidelines>

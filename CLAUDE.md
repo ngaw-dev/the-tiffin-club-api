@@ -179,3 +179,7 @@ Default canonical labels, used as-is (`needs-triage`, `needs-info`, `ready-for-a
 ### Domain docs
 
 Single-context: root `GLOSSARY.md` + `docs/adr/` (created lazily). See `docs/agents/domain.md`.
+
+### API docs
+
+- Any code change that affects the API (routes, request/response shapes, validation, filters, auth behavior) must update `docs/admin-api.md` (admin API) and any other doc covering the changed endpoint, in the same commit.
