@@ -254,6 +254,15 @@ it('lists payments filtered by order', function (): void {
     expect(count($response->json('data.resource')))->toBe(1);
 });
 
+it('includes created_at and updated_at on resources', function (): void {
+    $token = adminToken();
+    $order = Order::factory()->create();
+
+    getJson("/api/v1/admin/orders/{$order->id}", ['Authorization' => "Bearer $token"])
+        ->assertOk()
+        ->assertJsonStructure(['data' => ['created_at', 'updated_at']]);
+});
+
 it('shows a customer with their order history and updates their details', function (): void {
     $token = adminToken();
     $customer = Customer::factory()->create(['name' => 'Old Name']);

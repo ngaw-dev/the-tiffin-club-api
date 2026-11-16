@@ -16,6 +16,7 @@ All other endpoints require `Authorization: Bearer <token>` and return **401** w
 ## Conventions
 
 - Responses use the app's standard envelope: `{ success, message, data }`; lists are `{ data: { resource, links, meta } }`.
+- All resources include `created_at` / `updated_at` (ISO 8601).
 - List endpoints support Spatie Query Builder params: `?filter[...]=`, `?sort=` (prefix `-` for descending), `?page=`, `?per_page=` (default 15).
 - All money amounts are **integer cents** — in both requests and responses, including `POST /payments`.
 

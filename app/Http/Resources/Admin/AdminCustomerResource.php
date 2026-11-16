@@ -21,6 +21,8 @@ class AdminCustomerResource extends JsonResource
             'order_count' => $this->whenCounted('orders'),
             'orders' => AdminOrderResource::collection($this->whenLoaded('orders')),
             'payments' => AdminPaymentResource::collection($this->whenLoaded('payments')),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

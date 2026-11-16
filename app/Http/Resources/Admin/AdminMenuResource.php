@@ -17,6 +17,8 @@ class AdminMenuResource extends JsonResource
             'cutoff_time' => $this->cutoff_time?->format('H:i'),
             'published' => $this->published_at !== null,
             'items' => AdminMenuItemResource::collection($this->whenLoaded('items')),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

@@ -18,6 +18,8 @@ class AdminMenuItemResource extends JsonResource
             'description' => $this->description,
             'price' => $this->price,
             'sort_order' => $this->sort_order,
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }

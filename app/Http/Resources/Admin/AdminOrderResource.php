@@ -24,6 +24,8 @@ class AdminOrderResource extends JsonResource
             'payments' => AdminPaymentResource::collection($this->whenLoaded('payments')),
             'delivery_notes' => $this->delivery_notes,
             'placed_at' => $this->placed_at?->toIso8601String(),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
         ];
     }
 }
