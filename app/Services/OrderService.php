@@ -104,9 +104,14 @@ class OrderService
             }
         }
 
-        // Remember the latest submitted details as the defaults.
+        // Remember the latest submitted details as the defaults, but
+        // never claim an email/phone another customer already owns.
+        $taken = fn (string $field, ?string $value) => $value !== null && $value !== ''
+            && Customer::query()->where($field, $value)->whereKeyNot($customer->id)->exists();
+
         foreach (['name', 'email', 'phone', 'address', 'suburb'] as $field) {
-            if (($value = $request->validated($field)) !== null && $value !== '') {
+            $value = $request->validated($field);
+            if ($value !== null && $value !== '' && ! $taken($field, $value)) {
                 $customer->{$field} = $value;
             }
         }

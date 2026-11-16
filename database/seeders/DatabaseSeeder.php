@@ -16,5 +16,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(DemoMenuSeeder::class);
         $this->call(StaffUserSeeder::class);
+        $this->call(GlobalSettingSeeder::class);
     }
 }

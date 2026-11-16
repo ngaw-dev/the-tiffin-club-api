@@ -25,8 +25,6 @@ return new class extends Migration
 
     public function up(): void
     {
-        // Temp-save the existing column values, then convert the
-        // table to one row per setting key.
         $old = DB::table('global_settings')->first();
 
         Schema::drop('global_settings');
@@ -37,17 +35,19 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // Temp-save: carry the old column values across as key rows.
         $values = $old
             ? collect($old)->only(array_keys(self::KEY_TYPES))->all()
-            : self::defaults();
+            : [];
 
         foreach (self::KEY_TYPES as $key => $type) {
+            if (! isset($values[$key])) {
+                continue;
+            }
+
             DB::table('global_settings')->insert([
                 'key' => $key,
-                // The old row already stores arrays as JSON strings.
-                'value' => ($type === 'array' && isset($values[$key]) && is_array($values[$key]))
-                    ? json_encode($values[$key])
-                    : ($values[$key] ?? null),
+                'value' => is_array($values[$key]) ? json_encode($values[$key]) : $values[$key],
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -87,22 +87,5 @@ return new class extends Migration
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-    }
-
-    /**
-     * Fresh-install seeds mirror the original column defaults.
-     *
-     * @return array<string, mixed>
-     */
-    private static function defaults(): array
-    {
-        return [
-            'delivery_suburbs' => json_encode(config('tiffin.delivery_suburbs')),
-            'order_cutoff_time' => '11:00',
-            'store_phone' => '021 123 4567',
-            'store_phone_alternate' => '04 555 1234',
-            'store_email' => 'hello@thetiffinclub.co.nz',
-            'pickup_address' => '123 Cuba Street, Te Aro, Wellington',
-        ];
     }
 };
