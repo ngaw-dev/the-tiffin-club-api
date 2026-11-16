@@ -57,7 +57,7 @@ it('opens at publish time when the menu is published late', function () {
 });
 
 it('falls back to the global settings cutoff when none is set for the day', function () {
-    GlobalSetting::query()->update(['order_cutoff_time' => '12:30']);
+    GlobalSetting::set('order_cutoff_time', '12:30');
 
     $menu = Menu::factory()->published()->create([
         'published_at' => aklToday('08:00'),
@@ -70,7 +70,7 @@ it('falls back to the global settings cutoff when none is set for the day', func
 });
 
 it('prefers the menu cutoff over the global settings cutoff', function () {
-    GlobalSetting::query()->update(['order_cutoff_time' => '12:30']);
+    GlobalSetting::set('order_cutoff_time', '12:30');
 
     $menu = Menu::factory()->published()->create([
         'published_at' => aklToday('08:00'),

@@ -30,7 +30,7 @@ class OrderingWindowService
         $opensAt = $publishedAt->greaterThan($baseOpen) ? $publishedAt : $baseOpen;
 
         $cutoff = $menu->cutoff_time
-            ?? GlobalSetting::query()->value('order_cutoff_time')
+            ?? GlobalSetting::get('order_cutoff_time')?->format('H:i')
             ?? config('tiffin.default_cutoff_time');
         $closesAt = $day->copy()->setTimeFromTimeString($cutoff);
 

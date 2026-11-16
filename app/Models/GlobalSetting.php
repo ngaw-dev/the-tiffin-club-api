@@ -3,41 +3,66 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
- * The store's single row of operator-editable global settings. Seeded
- * from config at migration time; edited directly in the DB afterwards.
+ * The store's global settings, stored as one row per key. The KEYS
+ * map is the single source of truth for which settings exist and
+ * their storage type; adding a setting means adding a key here.
  */
 class GlobalSetting extends Model
 {
-    protected $fillable = [
-        'delivery_suburbs',
-        'order_cutoff_time',
-        'pickup_start_time',
-        'pickup_end_time',
-        'store_phone',
-        'store_phone_alternate',
-        'store_email',
-        'pickup_address',
-        'pickup_map_url',
+    /** @var array<string, string> setting key => storage type */
+    public const KEYS = [
+        'delivery_suburbs' => 'array',
+        'order_cutoff_time' => 'time',
+        'pickup_start_time' => 'time',
+        'pickup_end_time' => 'time',
+        'store_phone' => 'string',
+        'store_phone_alternate' => 'string',
+        'store_email' => 'string',
+        'pickup_address' => 'string',
+        'pickup_map_url' => 'string',
     ];
 
-    protected function casts(): array
+    protected $fillable = ['key', 'value'];
+
+    /**
+     * A typed setting value: arrays come back decoded, times as
+     * Carbon, everything else as the stored string (or null).
+     */
+    public static function get(string $key): mixed
     {
-        return [
-            'delivery_suburbs' => 'array',
-            'order_cutoff_time' => 'datetime:H:i',
-            'pickup_start_time' => 'datetime:H:i',
-            'pickup_end_time' => 'datetime:H:i',
-        ];
+        $value = DB::table('global_settings')->where('key', $key)->value('value');
+
+        return match (self::KEYS[$key] ?? 'string') {
+            'array' => $value === null ? [] : json_decode($value, true),
+            'time' => $value === null ? null : Carbon::parse($value),
+            default => $value,
+        };
     }
 
     /**
-     * The single settings row, firstOrCreate'd so a missing row falls
-     * back to config defaults rather than breaking the app.
+     * Upsert a setting value; arrays are stored as JSON.
      */
-    public static function current(): self
+    public static function set(string $key, mixed $value): void
     {
-        return static::query()->firstOrFail();
+        $stored = is_array($value) ? json_encode($value) : $value;
+
+        DB::table('global_settings')->updateOrInsert(
+            ['key' => $key],
+            ['value' => $stored, 'updated_at' => now()],
+        );
+    }
+
+    /**
+     * All settings as a flat key => value array, straight from the rows.
+     *
+     * @return array<string, mixed>
+     */
+    public static function allSettings(): array
+    {
+        return DB::table('global_settings')->pluck('value', 'key')->all();
     }
 }

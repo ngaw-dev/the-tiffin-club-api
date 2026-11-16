@@ -37,7 +37,7 @@ class PlaceOrderRequest extends FormRequest
             'email' => ['required_without:phone', 'nullable', 'email', 'max:255'],
             'phone' => ['required_without:email', 'nullable', 'string', 'max:32'],
             'address' => ['nullable', 'string', 'max:255'],
-            'suburb' => ['required_if:fulfilment,delivery', 'nullable', 'string', Rule::in(GlobalSetting::current()->delivery_suburbs)],
+            'suburb' => ['required_if:fulfilment,delivery', 'nullable', 'string', Rule::in(GlobalSetting::get('delivery_suburbs'))],
             'delivery_notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => [

@@ -12,8 +12,8 @@ use Filament\Pages\Page as BasePage;
 use Filament\Schemas\Schema;
 
 /**
- * shortcut: plain Page bound to the single GlobalSetting row, revisit if
- * moving to the filament-settings plugin.
+ * shortcut: plain Page bound to the GlobalSetting key-value rows,
+ * revisit if moving to the filament-settings plugin.
  */
 class Settings extends BasePage implements HasForms
 {
@@ -27,11 +27,16 @@ class Settings extends BasePage implements HasForms
 
     public function mount(): void
     {
-        $settings = GlobalSetting::current();
-
         $this->form->fill([
-            ...$settings->attributesToArray(),
-            'delivery_suburbs' => collect($settings->delivery_suburbs ?? [])
+            'store_phone' => GlobalSetting::get('store_phone'),
+            'store_phone_alternate' => GlobalSetting::get('store_phone_alternate'),
+            'store_email' => GlobalSetting::get('store_email'),
+            'pickup_address' => GlobalSetting::get('pickup_address'),
+            'pickup_map_url' => GlobalSetting::get('pickup_map_url'),
+            'order_cutoff_time' => GlobalSetting::get('order_cutoff_time')?->format('H:i'),
+            'pickup_start_time' => GlobalSetting::get('pickup_start_time')?->format('H:i'),
+            'pickup_end_time' => GlobalSetting::get('pickup_end_time')?->format('H:i'),
+            'delivery_suburbs' => collect(GlobalSetting::get('delivery_suburbs'))
                 ->map(fn (string $suburb) => ['suburb' => $suburb])
                 ->values()->all(),
         ]);
@@ -65,6 +70,10 @@ class Settings extends BasePage implements HasForms
         $state['delivery_suburbs'] = collect($state['delivery_suburbs'] ?? [])
             ->pluck('suburb')->values()->all();
 
-        GlobalSetting::current()->update($state);
+        foreach ($state as $key => $value) {
+            if (array_key_exists($key, GlobalSetting::KEYS)) {
+                GlobalSetting::set($key, $value);
+            }
+        }
     }
 }

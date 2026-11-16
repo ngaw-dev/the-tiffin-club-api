@@ -19,7 +19,7 @@ class UpdateCustomerRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:32', Rule::unique('customers', 'phone')->ignore($this->user()?->id)],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'suburb' => ['sometimes', 'nullable', Rule::in(GlobalSetting::current()->delivery_suburbs)],
+            'suburb' => ['sometimes', 'nullable', Rule::in(GlobalSetting::get('delivery_suburbs'))],
         ];
     }
 

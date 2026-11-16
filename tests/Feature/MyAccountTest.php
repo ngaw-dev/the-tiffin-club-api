@@ -3,7 +3,6 @@
 // tests/Feature/MyAccountTest.php
 
 use App\Models\Customer;
-use App\Models\GlobalSetting;
 use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Models\Order;
@@ -126,7 +125,6 @@ it('returns the existing email-matched customer', function () {
 
 it('updates contact and delivery details via patch', function () {
     Customer::create(['name' => 'Amol W', 'email' => 'amol@example.com']);
-    GlobalSetting::current();
 
     patchJson('/api/v1/my-account', [
         'phone' => '0219998888',
@@ -140,7 +138,6 @@ it('updates contact and delivery details via patch', function () {
 
 it('rejects a suburb outside the delivery list', function () {
     Customer::create(['name' => 'Amol W', 'email' => 'amol@example.com']);
-    GlobalSetting::current();
 
     patchJson('/api/v1/my-account', [
         'suburb' => 'Nowhere',
@@ -193,7 +190,6 @@ it('returns an empty list without creating a customer', function () {
 
 it('links a bearer-authenticated order to the email-matched customer and rejects a mismatched payload email', function () {
     Carbon::setTestNow(today(OrderingWindowService::TIMEZONE)->setTime(10, 0));
-    GlobalSetting::current();
 
     $menu = Menu::create([
         'menu_date' => today(OrderingWindowService::TIMEZONE)->toDateString(),

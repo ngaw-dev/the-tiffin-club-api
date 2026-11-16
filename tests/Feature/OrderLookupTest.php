@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\GlobalSetting;
 use App\Models\Menu;
 use App\Models\MenuItem;
 use App\Services\OrderingWindowService;
@@ -79,7 +80,7 @@ it('requires token and at least one contact identifier', function () {
 it('exposes store settings publicly', function () {
     getJson('/api/v1/settings')
         ->assertOk()
-        ->assertJsonPath('data.order_cutoff_time', '11:00')
+        ->assertJsonPath('data.order_cutoff_time', config('tiffin.default_cutoff_time'))
         ->assertJsonPath('data.delivery_suburbs.0', 'Te Aro')
         ->assertJsonPath('data.pickup_start_time', null)
         ->assertJsonPath('data.pickup_end_time', null)
@@ -88,4 +89,14 @@ it('exposes store settings publicly', function () {
         ->assertJsonPath('data.store_email', 'hello@thetiffinclub.co.nz')
         ->assertJsonPath('data.pickup_address', '123 Cuba Street, Te Aro, Wellington')
         ->assertJsonPath('data.pickup_map_url', null);
+});
+
+it('serves settings from the key-value rows', function () {
+    GlobalSetting::set('order_cutoff_time', '18:45');
+    GlobalSetting::set('delivery_suburbs', ['Karori', 'Newtown']);
+
+    getJson('/api/v1/settings')
+        ->assertOk()
+        ->assertJsonPath('data.order_cutoff_time', '18:45')
+        ->assertJsonPath('data.delivery_suburbs', ['Karori', 'Newtown']);
 });
