@@ -165,3 +165,13 @@ it('lists customers with the largest outstanding balance first', function (): vo
     $response->assertOk();
     expect(strpos($response->getContent(), 'Big Balancer'))->toBeLessThan(strpos($response->getContent(), 'Small Saver'));
 });
+it('returns staff to the payments page after settling from it', function (): void {
+    staffUser();
+    $customer = Customer::create(['name' => 'Redirect Rita', 'address' => '6 Elm St', 'suburb' => 'Testville']);
+    $order = Order::factory()->create(['customer_id' => $customer->id, 'total' => 2000]);
+
+    actingAs(User::where('email', 'staff@admin.com')->first())
+        ->from('/staff/payments')
+        ->post("/staff/orders/{$order->id}/payments", ['amount' => 20])
+        ->assertRedirect('/staff/payments');
+});

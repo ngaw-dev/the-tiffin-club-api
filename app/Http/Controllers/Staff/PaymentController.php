@@ -48,10 +48,14 @@ class PaymentController extends Controller
             ->sortByDesc('outstanding')
             ->values();
 
+        // Header totals must use the same convention as the summary:
+        // payments on cancelled orders count toward neither figure.
         return view('staff.payments', [
             'payments' => $payments,
             'customers' => $customers,
-            'totalPaid' => $payments->sum('amount'),
+            'totalPaid' => $payments
+                ->filter(fn (Payment $payment) => ! $payment->order->isCancelled())
+                ->sum('amount'),
             'totalOutstanding' => $customers->sum(fn (array $row) => max($row['outstanding'], 0)),
         ]);
     }

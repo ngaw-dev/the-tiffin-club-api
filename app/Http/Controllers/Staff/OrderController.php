@@ -84,6 +84,7 @@ class OrderController extends Controller
             ]);
         });
 
-        return redirect('/staff/orders');
+        // Return staff to the page they settled from (orders or payments)
+        return redirect()->back();
     }
 }
