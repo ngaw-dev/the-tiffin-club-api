@@ -1,0 +1,1148 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "The Tiffin Club API",
+        "version": "1.0.0",
+        "description": "Public store API + Customer (Clerk) API + Admin API, generated from docs/api.md and docs/admin-api.md. Import into Apidog via **Settings → Import Data → OpenAPI/Swagger**.\n\n- Every response uses the envelope `{ success, message, data }` (errors add `errors: { field: [...] }`).\n- All money amounts are integer **cents** (`1600` = $16.00). All times are `Pacific/Auckland`; timestamps are ISO-8601, menu/ordering times are `HH:mm`.\n- Non-production only: send `X-Simulated-Time: <ISO-8601>` to fake \"now\" (echoed in `X-App-Time-Now`); ignored in production.\n- Auth: Clerk JWT bearer for customer endpoints; Sanctum token bearer for admin endpoints (staff email allowlist)."
+    },
+    "servers": [
+        {
+            "url": "http://thetiffinclub.test/api/v1",
+            "description": "Local (ddev)"
+        }
+    ],
+    "tags": [
+        { "name": "Public" },
+        { "name": "Customer (Clerk)" },
+        { "name": "Admin: Orders" },
+        { "name": "Admin: Payments" },
+        { "name": "Admin: Customers" },
+        { "name": "Admin: Menus" },
+        { "name": "Admin: Settings" },
+        { "name": "Admin: Auth" }
+    ],
+    "security": [{}, {}],
+    "components": {
+        "securitySchemes": {
+            "clerkBearer": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "Clerk JWT. Verified against Clerk's JWKS (issuer, `azp` origin allow-list, expiry); must carry `email_verified: true`. The verified email maps to the `customers` row. Missing/invalid → 401. Requires `CLERK_ISSUER` and `CLERK_ALLOWED_ORIGINS` in `.env`."
+            },
+            "adminBearer": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Sanctum personal access token from `POST /admin/login`. Access limited to the staff email allowlist (`ADMIN_EMAILS`). 401 without token, 403 off-allowlist."
+            }
+        },
+        "parameters": {
+            "SimulatedTime": {
+                "name": "X-Simulated-Time",
+                "in": "header",
+                "required": false,
+                "schema": { "type": "string", "format": "date-time", "examples": ["2026-11-16T22:45:00+13:00"] },
+                "description": "QA/staging only: server treats this instant as \"now\" for every time-based rule. Unparseable → 400. Ignored when `APP_ENV=production`."
+            },
+            "PerPage": {
+                "name": "per_page",
+                "in": "query",
+                "required": false,
+                "schema": { "type": "integer", "default": 15 }
+            },
+            "Page": {
+                "name": "page",
+                "in": "query",
+                "required": false,
+                "schema": { "type": "integer", "default": 1 }
+            }
+        },
+        "schemas": {
+            "OrderStatus": {
+                "type": "string",
+                "enum": ["placed", "confirmed", "ready_for_pickup", "out_for_delivery", "completed", "cancelled"],
+                "description": "Orders are returned as `confirmed` immediately on placement (auto-confirm; manual staff confirmation to come)."
+            },
+            "AdminOrderStatus": {
+                "type": "string",
+                "enum": ["confirmed", "ready_for_pickup", "out_for_delivery", "completed", "cancelled"],
+                "description": "Settable via admin PATCH (status only)."
+            },
+            "MenuItem": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer" },
+                    "name": { "type": "string" },
+                    "description": { "type": ["string", "null"] },
+                    "price": { "type": "integer", "description": "Cents." }
+                }
+            },
+            "Order": {
+                "type": "object",
+                "properties": {
+                    "manage_token": { "type": "string", "description": "64 hex chars. Sole handle to view/edit/cancel. Only returned on placement." },
+                    "status": { "$ref": "#/components/schemas/OrderStatus" },
+                    "fulfilment": { "type": "string", "enum": ["pickup", "delivery"] },
+                    "customer": {
+                        "type": "object",
+                        "description": "Live customer details at read time (not a placement snapshot); absent if the relation isn't eager-loaded.",
+                        "properties": {
+                            "name": { "type": "string" },
+                            "email": { "type": "string" },
+                            "phone": { "type": "string", "description": "Digits only." },
+                            "address": { "type": "string" },
+                            "suburb": { "type": "string" }
+                        }
+                    },
+                    "delivery_notes": { "type": ["string", "null"] },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": { "type": "string" },
+                                "quantity": { "type": "integer" },
+                                "unit_price": { "type": "integer", "description": "Cents snapshot at order time." },
+                                "line_total": { "type": "integer", "description": "Cents." }
+                            }
+                        }
+                    },
+                    "total": { "type": "integer", "description": "Server-computed at menu prices, cents." },
+                    "payment": { "type": "string", "examples": ["pay_in_person"] },
+                    "placed_at": { "type": "string", "format": "date-time" },
+                    "expires_at": { "type": "string", "format": "date-time", "description": "Manage token lifetime ends here — 23:59:59 on the order day." }
+                }
+            },
+            "Envelope": {
+                "type": "object",
+                "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" }
+                }
+            },
+            "ValidationError": {
+                "type": "object",
+                "properties": {
+                    "success": { "type": "boolean", "examples": [false] },
+                    "message": { "type": "string" },
+                    "errors": {
+                        "type": "object",
+                        "description": "Maps field → messages.",
+                        "additionalProperties": { "type": "array", "items": { "type": "string" } }
+                    }
+                }
+            }
+        },
+        "responses": {
+            "ValidationError": {
+                "description": "Validation failed",
+                "content": {
+                    "application/json": {
+                        "schema": { "$ref": "#/components/schemas/ValidationError" },
+                        "examples": {
+                            "closed": {
+                                "value": {
+                                    "success": false,
+                                    "message": "The given data was invalid.",
+                                    "errors": { "ordering": ["The ordering window is closed."] }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "Unauthorized": {
+                "description": "Missing/invalid bearer token",
+                "content": {
+                    "application/json": {
+                        "schema": { "$ref": "#/components/schemas/Envelope" },
+                        "example": { "success": false, "message": "Unauthenticated." }
+                    }
+                }
+            }
+        }
+    },
+    "paths": {
+        "/settings": {
+            "get": {
+                "tags": ["Public"],
+                "summary": "Get store settings",
+                "description": "Public store settings, read-only. `delivery_suburbs` feeds order placement validation (`suburb` must be in this list for delivery). `pickup_map_url` is nullable.",
+                "parameters": [{ "$ref": "#/components/parameters/SimulatedTime" }],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "delivery_suburbs": { "type": "array", "items": { "type": "string" } },
+                                                "order_cutoff_time": { "type": "string", "examples": ["11:00"] },
+                                                "pickup_start_time": { "type": "string", "examples": ["17:00"] },
+                                                "pickup_end_time": { "type": "string", "examples": ["19:00"] },
+                                                "store_phone": { "type": "string" },
+                                                "store_phone_alternate": { "type": "string" },
+                                                "store_email": { "type": "string", "format": "email" },
+                                                "pickup_address": { "type": "string" },
+                                                "pickup_map_url": { "type": ["string", "null"], "description": "Maps deep link for the pickup address." }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/menu/today": {
+            "get": {
+                "tags": ["Public"],
+                "summary": "Get today's menu",
+                "description": "Today's published menu plus the ordering window. Clients never compute open/closed themselves — use `data.ordering.state`: `open` | `opening_later` | `closing_soon` | `closed`.",
+                "parameters": [{ "$ref": "#/components/parameters/SimulatedTime" }],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": {
+                                            "oneOf": [
+                                                {
+                                                    "type": "object",
+                                                    "description": "Menu published.",
+                                                    "properties": {
+                                                        "status": { "type": "string", "enum": ["open", "closed"] },
+                                                        "date": { "type": "string", "format": "date" },
+                                                        "main": { "$ref": "#/components/schemas/MenuItem" },
+                                                        "extras": { "type": "array", "items": { "$ref": "#/components/schemas/MenuItem" } },
+                                                        "ordering": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "state": { "type": "string", "enum": ["open", "opening_later", "closing_soon", "closed"] },
+                                                                "open": { "type": "boolean" },
+                                                                "closing_soon": { "type": "boolean" },
+                                                                "opens_at": { "type": "string", "examples": ["09:00"] },
+                                                                "closes_at": { "type": "string", "examples": ["11:00"] }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                {
+                                                    "type": "object",
+                                                    "description": "No menu published yet.",
+                                                    "properties": {
+                                                        "status": { "type": "string", "enum": ["coming_soon"] },
+                                                        "main": { "type": "null" },
+                                                        "extras": { "type": "array", "items": {}, "maxItems": 0 }
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/orders": {
+            "post": {
+                "tags": ["Public"],
+                "summary": "Place order",
+                "description": "Place a guest order for today's menu → **201**. `manage_token` (64 hex) is only returned here — store it.\n\nRules: `name` required; at least one of `email`/`phone` (both optional individually); `suburb` required for delivery and must be in `delivery_suburbs`; `items.*.id` must exist on today's menu, `quantity` 1–20.\n\nSide effects: resolves/updates the customer (find-or-create by email, then phone; email match wins), fires `OrderPlaced` after commit, queues a confirmation email when the customer has an email. Initial status `confirmed` (auto-confirm).\n\nAuthenticated placement: with a Bearer token present, payload `email` (when given) must match the JWT email → else 422; invalid-but-present token → 401.",
+                "security": [{}, { "clerkBearer": [] }],
+                "parameters": [{ "$ref": "#/components/parameters/SimulatedTime" }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["fulfilment", "name", "items"],
+                                "properties": {
+                                    "fulfilment": { "type": "string", "enum": ["pickup", "delivery"] },
+                                    "name": { "type": "string" },
+                                    "email": { "type": "string", "format": "email", "description": "Required together with phone if phone absent. Lowercased." },
+                                    "phone": { "type": "string", "description": "Digits only." },
+                                    "address": { "type": "string" },
+                                    "suburb": { "type": "string", "description": "Required when `fulfilment=delivery`; must be in `delivery_suburbs`." },
+                                    "delivery_notes": { "type": "string" },
+                                    "items": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "items": {
+                                            "type": "object",
+                                            "required": ["id", "quantity"],
+                                            "properties": {
+                                                "id": { "type": "integer", "description": "Must exist on today's menu." },
+                                                "quantity": { "type": "integer", "minimum": 1, "maximum": 20 }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "example": {
+                                "fulfilment": "delivery",
+                                "name": "Amol W",
+                                "email": "amol@example.com",
+                                "phone": "0211234567",
+                                "address": "12 Cuba Street",
+                                "suburb": "Te Aro",
+                                "delivery_notes": "Knock twice",
+                                "items": [
+                                    { "id": 3, "quantity": 2 },
+                                    { "id": 4, "quantity": 1 }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Order placed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": { "$ref": "#/components/schemas/Order" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "422": {
+                        "allOf": [{ "$ref": "#/components/responses/ValidationError" }],
+                        "description": "Validation failed — `items.*.id`, `suburb`, `email`, `phone`, or `ordering` (window closed)."
+                    }
+                }
+            }
+        },
+        "/orders/lookup": {
+            "post": {
+                "tags": ["Public"],
+                "summary": "Lookup order",
+                "description": "Knowledge-based lookup: manage token + the email or phone used at checkout — matched against the customer's **current** email/phone (both live values). Every failure (unknown token, expired token, wrong contact) answers identically **404** — nothing leaks.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["token"],
+                                "anyOf": [
+                                    { "required": ["email"] },
+                                    { "required": ["phone"] }
+                                ],
+                                "properties": {
+                                    "token": { "type": "string", "description": "64 hex chars." },
+                                    "email": { "type": "string", "format": "email" },
+                                    "phone": { "type": "string" }
+                                }
+                            },
+                            "example": { "token": "{{order_token}}", "email": "amol@example.com" }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": { "$ref": "#/components/schemas/Order" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Unknown token, expired token, or wrong contact — identical response for all three.",
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/Envelope" },
+                                "example": { "success": false, "message": "Not found." }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{token}": {
+            "parameters": [
+                {
+                    "name": "token",
+                    "in": "path",
+                    "required": true,
+                    "schema": { "type": "string" },
+                    "description": "Order manage token (64 hex chars)."
+                },
+                { "$ref": "#/components/parameters/SimulatedTime" }
+            ],
+            "get": {
+                "tags": ["Public"],
+                "summary": "Get order",
+                "description": "View an order by manage token.",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": { "$ref": "#/components/schemas/Order" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": { "description": "Unknown token." },
+                    "410": { "description": "Token expired (past 23:59:59 on the order day)." }
+                }
+            },
+            "patch": {
+                "tags": ["Public"],
+                "summary": "Update order",
+                "description": "Edit an order before cutoff. All fields `sometimes`; applied fields are `fulfilment`, `delivery_notes`, `items`. Item ids validated against the order's own menu. Changing `fulfilment` to `delivery` does **not** re-validate a suburb — validate client-side against `GET /settings`.\n\nKnown gap: the request still *accepts* `name`, `address`, `suburb` (validated then silently ignored — these live on the customer). Email/phone are rejected.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "fulfilment": { "type": "string", "enum": ["pickup", "delivery"] },
+                                    "delivery_notes": { "type": "string" },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": { "type": "integer", "description": "Must exist on the order's menu." },
+                                                "quantity": { "type": "integer", "minimum": 1, "maximum": 20 }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "example": {
+                                "fulfilment": "pickup",
+                                "delivery_notes": "Leave at door",
+                                "items": [{ "id": 3, "quantity": 1 }]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": { "$ref": "#/components/schemas/Order" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": { "description": "Unknown token." },
+                    "410": { "description": "Token expired." },
+                    "422": {
+                        "allOf": [{ "$ref": "#/components/responses/ValidationError" }],
+                        "description": "Validation failed / off-menu items / after cutoff (`ordering`)."
+                    }
+                }
+            },
+            "delete": {
+                "tags": ["Public"],
+                "summary": "Cancel order",
+                "description": "Cancel an order before cutoff → **200** with the order object (`status: \"cancelled\"`). After cutoff only staff may cancel (not exposed via this API).",
+                "responses": {
+                    "200": {
+                        "description": "Cancelled",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": { "$ref": "#/components/schemas/Order" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": { "description": "Unknown token." },
+                    "410": { "description": "Token expired." }
+                }
+            }
+        },
+        "/my-account": {
+            "get": {
+                "tags": ["Customer (Clerk)"],
+                "summary": "Get my account",
+                "description": "The signed-in customer. **Creates** the row from the JWT name + email on first request.",
+                "security": [{ "clerkBearer": [] }],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": { "type": "string" },
+                                                "email": { "type": "string", "format": "email" },
+                                                "phone": { "type": ["string", "null"] },
+                                                "address": { "type": ["string", "null"] },
+                                                "suburb": { "type": ["string", "null"] }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            },
+            "patch": {
+                "tags": ["Customer (Clerk)"],
+                "summary": "Update my account",
+                "description": "Update contact/delivery details. All fields optional. `suburb` must be in the delivery list; `phone` unique.",
+                "security": [{ "clerkBearer": [] }],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": { "type": "string" },
+                                    "phone": { "type": "string", "description": "Unique; digits only." },
+                                    "address": { "type": "string" },
+                                    "suburb": { "type": "string", "description": "Must be in `delivery_suburbs`." }
+                                }
+                            },
+                            "example": {
+                                "name": "Amol W",
+                                "phone": "0211234567",
+                                "address": "12 Cuba Street",
+                                "suburb": "Te Aro"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": { "type": "string" },
+                                                "email": { "type": "string", "format": "email" },
+                                                "phone": { "type": ["string", "null"] },
+                                                "address": { "type": ["string", "null"] },
+                                                "suburb": { "type": ["string", "null"] }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            }
+        },
+        "/my-orders": {
+            "get": {
+                "tags": ["Customer (Clerk)"],
+                "summary": "Get my orders",
+                "description": "Every order on the email-matched customer row — guest history included — newest first. No row yet → `data: []` (never creates one).",
+                "security": [{ "clerkBearer": [] }],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": { "type": "boolean" },
+                                        "message": { "type": "string" },
+                                        "data": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            }
+        },
+        "/admin/login": {
+            "post": {
+                "tags": ["Admin: Auth"],
+                "summary": "Login",
+                "description": "Email + password → `{ data: { token: \"1|...\", user: { name, email } } }`. Account must be on the staff email allowlist (`ADMIN_EMAILS`). Rate limited 10/min → 429.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["email", "password"],
+                                "properties": {
+                                    "email": { "type": "string", "format": "email" },
+                                    "password": { "type": "string", "format": "password" }
+                                }
+                            },
+                            "example": { "email": "admin@thetiffinclub.co.nz", "password": "password" }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "success": true,
+                                    "message": "Logged in.",
+                                    "data": {
+                                        "token": "1|abcdef1234567890",
+                                        "user": { "name": "Amol W", "email": "admin@thetiffinclub.co.nz" }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "422": { "$ref": "#/components/responses/ValidationError" },
+                    "429": { "description": "Rate limited (10/min)." }
+                }
+            }
+        },
+        "/admin/logout": {
+            "post": {
+                "tags": ["Admin: Auth"],
+                "summary": "Logout",
+                "description": "Deletes the current Sanctum token.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            }
+        },
+        "/admin/orders": {
+            "get": {
+                "tags": ["Admin: Orders"],
+                "summary": "List orders",
+                "description": "Paginated (`data: { resource, links, meta }`). Includes customer + payments (with `paid` sum). Filters: `status`, `fulfilment`, `customer_id`, `menu_id`. Sorts: `placed_at`, `total` (`-` prefix = descending). Default `-placed_at`.",
+                "security": [{ "adminBearer": [] }],
+                "parameters": [
+                    {
+                        "name": "filter[status]",
+                        "in": "query",
+                        "schema": { "$ref": "#/components/schemas/AdminOrderStatus" }
+                    },
+                    {
+                        "name": "filter[fulfilment]",
+                        "in": "query",
+                        "schema": { "type": "string", "enum": ["pickup", "delivery"] }
+                    },
+                    { "name": "filter[customer_id]", "in": "query", "schema": { "type": "integer" } },
+                    { "name": "filter[menu_id]", "in": "query", "schema": { "type": "integer" } },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "schema": { "type": "string", "enum": ["placed_at", "-placed_at", "total", "-total"], "default": "-placed_at" }
+                    },
+                    { "$ref": "#/components/parameters/Page" },
+                    { "$ref": "#/components/parameters/PerPage" }
+                ],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "403": { "description": "Account not on the staff allowlist." }
+                }
+            }
+        },
+        "/admin/orders/{id}": {
+            "parameters": [
+                { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+            ],
+            "get": {
+                "tags": ["Admin: Orders"],
+                "summary": "Get order",
+                "description": "Single order; includes items, payments, customer.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." }
+                }
+            },
+            "patch": {
+                "tags": ["Admin: Orders"],
+                "summary": "Update order status",
+                "description": "Status only — order contents are immutable. 422 if cancelling an order with a recorded paid sum > 0 (payments are immutable; ADR 0002). Writes an audit entry (`status_changed`, actor `staff`).",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["status"],
+                                "properties": {
+                                    "status": { "$ref": "#/components/schemas/AdminOrderStatus" }
+                                }
+                            },
+                            "example": { "status": "ready_for_pickup" }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." },
+                    "422": {
+                        "allOf": [{ "$ref": "#/components/responses/ValidationError" }],
+                        "description": "Invalid status, or cancelling an order with a recorded paid sum > 0."
+                    }
+                }
+            }
+        },
+        "/admin/payments": {
+            "get": {
+                "tags": ["Admin: Payments"],
+                "summary": "List payments",
+                "description": "Paginated. Filters: `method`, `order_id`, `customer_id`. Sorts: `paid_at`, `amount`. Default `-paid_at`.",
+                "security": [{ "adminBearer": [] }],
+                "parameters": [
+                    { "name": "filter[method]", "in": "query", "schema": { "type": "string" } },
+                    { "name": "filter[order_id]", "in": "query", "schema": { "type": "integer" } },
+                    { "name": "filter[customer_id]", "in": "query", "schema": { "type": "integer" } },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "schema": { "type": "string", "enum": ["paid_at", "-paid_at", "amount", "-amount"], "default": "-paid_at" }
+                    },
+                    { "$ref": "#/components/parameters/Page" },
+                    { "$ref": "#/components/parameters/PerPage" }
+                ],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            },
+            "post": {
+                "tags": ["Admin: Payments"],
+                "summary": "Record payment",
+                "description": "Records a manual cash payment. `amount` in **cents**. 422 if the amount exceeds the order's outstanding balance. Payments are immutable — no edit/refund/delete/fail endpoints (ADR 0002).",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["order_id", "amount"],
+                                "properties": {
+                                    "order_id": { "type": "integer" },
+                                    "amount": { "type": "integer", "description": "Cents." }
+                                }
+                            },
+                            "example": { "order_id": 1, "amount": 2000 }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": { "description": "Payment recorded." },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "422": {
+                        "allOf": [{ "$ref": "#/components/responses/ValidationError" }],
+                        "description": "Amount exceeds the order's outstanding balance."
+                    }
+                }
+            }
+        },
+        "/admin/customers": {
+            "get": {
+                "tags": ["Admin: Customers"],
+                "summary": "List customers",
+                "description": "Paginated. Filters: `name`, `email`, `suburb`. Sort: `name`. Includes `order_count`.",
+                "security": [{ "adminBearer": [] }],
+                "parameters": [
+                    { "name": "filter[name]", "in": "query", "schema": { "type": "string" } },
+                    { "name": "filter[email]", "in": "query", "schema": { "type": "string" } },
+                    { "name": "filter[suburb]", "in": "query", "schema": { "type": "string" } },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "schema": { "type": "string", "enum": ["name", "-name"], "default": "name" }
+                    },
+                    { "$ref": "#/components/parameters/Page" },
+                    { "$ref": "#/components/parameters/PerPage" }
+                ],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            }
+        },
+        "/admin/customers/{id}": {
+            "parameters": [
+                { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+            ],
+            "get": {
+                "tags": ["Admin: Customers"],
+                "summary": "Get customer",
+                "description": "Single customer; includes orders (with payments), newest first.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." }
+                }
+            },
+            "patch": {
+                "tags": ["Admin: Customers"],
+                "summary": "Update customer",
+                "description": "Any of `name`, `email`, `phone`, `address`, `suburb`. Email lowercased, phone normalized to digits. No create/delete/blocking.",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": { "type": "string" },
+                                    "email": { "type": "string", "format": "email" },
+                                    "phone": { "type": "string" },
+                                    "address": { "type": "string" },
+                                    "suburb": { "type": "string" }
+                                }
+                            },
+                            "example": {
+                                "name": "Amol W",
+                                "email": "amol@example.com",
+                                "phone": "0211234567",
+                                "address": "12 Cuba Street",
+                                "suburb": "Te Aro"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            }
+        },
+        "/admin/menus": {
+            "get": {
+                "tags": ["Admin: Menus"],
+                "summary": "List menus",
+                "description": "Paginated. Filter: `menu_date`. Sort: `menu_date`. Default `-menu_date`. Includes items.",
+                "security": [{ "adminBearer": [] }],
+                "parameters": [
+                    {
+                        "name": "filter[menu_date]",
+                        "in": "query",
+                        "schema": { "type": "string", "format": "date" }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "schema": { "type": "string", "enum": ["menu_date", "-menu_date"], "default": "-menu_date" }
+                    },
+                    { "$ref": "#/components/parameters/Page" },
+                    { "$ref": "#/components/parameters/PerPage" }
+                ],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            },
+            "post": {
+                "tags": ["Admin: Menus"],
+                "summary": "Create menu",
+                "description": "`menu_date` unique per date.",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["menu_date"],
+                                "properties": {
+                                    "menu_date": { "type": "string", "format": "date" },
+                                    "cutoff_time": { "type": "string", "examples": ["11:00"], "description": "HH:MM." }
+                                }
+                            },
+                            "example": { "menu_date": "2026-11-20", "cutoff_time": "11:00" }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": { "description": "Created." },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "422": {
+                        "allOf": [{ "$ref": "#/components/responses/ValidationError" }],
+                        "description": "Validation failed / duplicate `menu_date`."
+                    }
+                }
+            }
+        },
+        "/admin/menus/{id}": {
+            "parameters": [
+                { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+            ],
+            "get": {
+                "tags": ["Admin: Menus"],
+                "summary": "Get menu",
+                "description": "Single menu; includes items.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." }
+                }
+            },
+            "patch": {
+                "tags": ["Admin: Menus"],
+                "summary": "Update menu",
+                "description": "`publish: true/false` sets/clears `published_at`.",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "menu_date": { "type": "string", "format": "date" },
+                                    "cutoff_time": { "type": "string", "examples": ["11:00"] },
+                                    "publish": { "type": "boolean" }
+                                }
+                            },
+                            "example": { "publish": true }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            },
+            "delete": {
+                "tags": ["Admin: Menus"],
+                "summary": "Delete menu",
+                "description": "Deletes the menu and its items.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "Deleted." },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." },
+                    "409": { "description": "Conflict — an order references the menu." }
+                }
+            }
+        },
+        "/admin/menus/{id}/items": {
+            "parameters": [
+                { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+            ],
+            "post": {
+                "tags": ["Admin: Menus"],
+                "summary": "Add menu item",
+                "description": "`type`: `main` | `extra`; `price` in **cents**.",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": ["type", "name", "price"],
+                                "properties": {
+                                    "type": { "type": "string", "enum": ["main", "extra"] },
+                                    "name": { "type": "string" },
+                                    "description": { "type": "string" },
+                                    "price": { "type": "integer", "description": "Cents." },
+                                    "sort_order": { "type": "integer" }
+                                }
+                            },
+                            "example": {
+                                "type": "main",
+                                "name": "Butter Chicken",
+                                "description": "With rice and naan",
+                                "price": 1600,
+                                "sort_order": 1
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": { "description": "Created." },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            }
+        },
+        "/admin/menus/{id}/items/{itemId}": {
+            "parameters": [
+                { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } },
+                { "name": "itemId", "in": "path", "required": true, "schema": { "type": "integer" } }
+            ],
+            "patch": {
+                "tags": ["Admin: Menus"],
+                "summary": "Update menu item",
+                "description": "Same fields as create, all optional.",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "type": { "type": "string", "enum": ["main", "extra"] },
+                                    "name": { "type": "string" },
+                                    "description": { "type": "string" },
+                                    "price": { "type": "integer", "description": "Cents." },
+                                    "sort_order": { "type": "integer" }
+                                }
+                            },
+                            "example": { "price": 1700 }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." },
+                    "422": { "$ref": "#/components/responses/ValidationError" }
+                }
+            },
+            "delete": {
+                "tags": ["Admin: Menus"],
+                "summary": "Delete menu item",
+                "description": "Safe for existing orders — `order_items` snapshot `unit_price`.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "Deleted." },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "404": { "description": "Not found." }
+                }
+            }
+        },
+        "/admin/settings": {
+            "get": {
+                "tags": ["Admin: Settings"],
+                "summary": "Get settings",
+                "description": "Same shape as public `GET /settings`.",
+                "security": [{ "adminBearer": [] }],
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" }
+                }
+            },
+            "put": {
+                "tags": ["Admin: Settings"],
+                "summary": "Update settings",
+                "description": "Partial update of any known key. Unknown keys are rejected.",
+                "security": [{ "adminBearer": [] }],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "delivery_suburbs": { "type": "array", "items": { "type": "string" } },
+                                    "order_cutoff_time": { "type": "string", "examples": ["11:00"], "description": "HH:MM." },
+                                    "pickup_start_time": { "type": "string", "examples": ["17:00"], "description": "HH:MM." },
+                                    "pickup_end_time": { "type": "string", "examples": ["19:00"], "description": "HH:MM." },
+                                    "store_phone": { "type": "string" },
+                                    "store_phone_alternate": { "type": "string" },
+                                    "store_email": { "type": "string", "format": "email" },
+                                    "pickup_address": { "type": "string" },
+                                    "pickup_map_url": { "type": "string", "format": "uri" }
+                                }
+                            },
+                            "example": {
+                                "delivery_suburbs": ["Te Aro", "Kelburn"],
+                                "order_cutoff_time": "11:00",
+                                "pickup_start_time": "17:00",
+                                "pickup_end_time": "19:00",
+                                "store_phone": "021 123 4567",
+                                "store_phone_alternate": "04 555 1234",
+                                "store_email": "hello@thetiffinclub.co.nz",
+                                "pickup_address": "123 Cuba Street, Te Aro, Wellington",
+                                "pickup_map_url": "https://maps.example.com/..."
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": { "description": "OK" },
+                    "401": { "$ref": "#/components/responses/Unauthorized" },
+                    "422": {
+                        "allOf": [{ "$ref": "#/components/responses/ValidationError" }],
+                        "description": "Validation failed / unknown keys rejected."
+                    }
+                }
+            }
+        }
+    }
+}
