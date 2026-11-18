@@ -18,7 +18,7 @@ class CustomerController extends Controller
     {
         $customers = QueryBuilder::for(Customer::class)
             ->allowedFilters('name', 'email', 'suburb')
-            ->allowedSorts('name')
+            ->allowedSorts('name', 'email')
             ->defaultSort('name')
             ->withCount('orders')
             ->paginate($request->integer('per_page', 15))
@@ -29,7 +29,7 @@ class CustomerController extends Controller
 
     public function show(Customer $customer): JsonResponse
     {
-        $customer->load(['orders' => fn ($query) => $query->latest('placed_at'), 'orders.payments']);
+        $customer->load(['orders' => fn($query) => $query->latest('placed_at'), 'orders.payments']);
 
         return $this->successResponse(new AdminCustomerResource($customer), 'Customer');
     }

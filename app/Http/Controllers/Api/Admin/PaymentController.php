@@ -24,7 +24,7 @@ class PaymentController extends Controller
                 AllowedFilter::exact('order_id'),
                 AllowedFilter::exact('customer_id'),
             )
-            ->allowedSorts('paid_at', 'amount')
+            ->allowedSorts('paid_at', 'amount', 'order_id')
             ->defaultSort('-paid_at')
             ->with(['customer', 'order'])
             ->paginate($request->integer('per_page', 15))

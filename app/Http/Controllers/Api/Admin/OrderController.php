@@ -26,7 +26,7 @@ class OrderController extends Controller
                 AllowedFilter::exact('customer_id'),
                 AllowedFilter::exact('menu_id'),
             )
-            ->allowedSorts('placed_at', 'total')
+            ->allowedSorts('placed_at', 'total', 'fulfilment', 'status')
             ->defaultSort('-placed_at')
             ->with(['customer', 'payments'])
             ->paginate($request->integer('per_page', 15))
@@ -49,7 +49,7 @@ class OrderController extends Controller
     public function update(Request $request, Order $order): JsonResponse
     {
         $validated = $request->validate([
-            'status' => ['required', 'in:'.implode(',', [
+            'status' => ['required', 'in:' . implode(',', [
                 Order::STATUS_CONFIRMED,
                 Order::STATUS_READY_FOR_PICKUP,
                 Order::STATUS_OUT_FOR_DELIVERY,

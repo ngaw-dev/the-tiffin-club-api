@@ -1,0 +1,778 @@
+{
+    "info": {
+        "_postman_id": "b1f4e2a0-9c3d-4e8f-a7b6-5d2c1e0f9a83",
+        "name": "The Tiffin Club API",
+        "description": "Public store API + Customer (Clerk) API + Admin API, generated from docs/api.md and docs/admin-api.md.\n\n- Base URL: `{{base_url}}` (e.g. `https://thetiffinclub.test/api/v1`).\n- Every response uses the envelope `{ success, message, data }` (errors add `errors: { field: [...] }`).\n- All money amounts are integer **cents** (`1600` = $16.00). All times are `Pacific/Auckland`.\n- Non-production only: send `X-Simulated-Time: <ISO-8601>` to fake \"now\" (echoed back in `X-App-Time-Now`; ignored in production).\n\nWorkflow: run Admin ▸ login first to fill `{{admin_token}}`. Place an order in Public ▸ Create order to fill `{{order_token}}`. Paste a Clerk JWT into `{{clerk_token}}` for the Customer folder.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://thetiffinclub.test/api/v1",
+            "type": "string"
+        },
+        {
+            "key": "admin_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "clerk_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "order_token",
+            "value": "",
+            "type": "string"
+        },
+        {
+            "key": "admin_email",
+            "value": "admin@thetiffinclub.co.nz",
+            "type": "string"
+        },
+        {
+            "key": "admin_password",
+            "value": "password",
+            "type": "string"
+        }
+    ],
+    "item": [
+        {
+            "name": "Public",
+            "description": "Guest-facing endpoints. No auth except optional Bearer on `POST /orders` (authenticated placement).",
+            "item": [
+                {
+                    "name": "Get store settings",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/settings",
+                        "description": "Public store settings, read-only. `delivery_suburbs` feeds order placement validation (`suburb` must be in this list for delivery). `pickup_map_url` is nullable."
+                    }
+                },
+                {
+                    "name": "Get today's menu",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/menu/today",
+                        "description": "Today's published menu plus ordering window. Use `data.ordering.state` (`open` | `opening_later` | `closing_soon` | `closed`) — never compute open/closed client-side. No menu published yet → `{ \"status\": \"coming_soon\", \"main\": null, \"extras\": [] }`."
+                    }
+                },
+                {
+                    "name": "Create order",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "// Save the manage token — sole handle to view/edit/cancel the order.",
+                                    "var body = pm.response.json();",
+                                    "if (body.data && body.data.manage_token) {",
+                                    "    pm.collectionVariables.set('order_token', body.data.manage_token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"fulfilment\": \"delivery\",\n    \"name\": \"Amol W\",\n    \"email\": \"amol@example.com\",\n    \"phone\": \"0211234567\",\n    \"address\": \"12 Cuba Street\",\n    \"suburb\": \"Te Aro\",\n    \"delivery_notes\": \"Knock twice\",\n    \"items\": [\n        { \"id\": 3, \"quantity\": 2 },\n        { \"id\": 4, \"quantity\": 1 }\n    ]\n}"
+                        },
+                        "url": "{{base_url}}/orders",
+                        "description": "Place a guest order for today's menu → **201**. `manage_token` (64 hex) is only returned here; the test script saves it to `{{order_token}}`.\n\nRules: `name` required; at least one of `email`/`phone`; `suburb` required for delivery and must be in `delivery_suburbs`; `items.*.id` must exist on today's menu, `quantity` 1–20. Errors: 422 (`items.*.id`, `suburb`, `email`, `phone`, `ordering` when window closed).\n\nWith a Bearer (Clerk) token present: payload `email` must match the JWT email (else 422); invalid-but-present token → 401. Initial status is `confirmed` (auto-confirm). Fires a queued confirmation email when the customer has an email."
+                    }
+                },
+                {
+                    "name": "Lookup order",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"{{order_token}}\",\n    \"email\": \"amol@example.com\"\n}"
+                        },
+                        "url": "{{base_url}}/orders/lookup",
+                        "description": "Knowledge-based lookup: manage token + the email or phone used at checkout (matched against the customer's **current** values). `email` and `phone` are interchangeable; at least one required. Every failure (unknown token, expired, wrong contact) answers identically **404** — nothing leaks."
+                    }
+                },
+                {
+                    "name": "Get order",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{base_url}}/orders/{{order_token}}",
+                        "description": "View an order by manage token. **200** order object; **404** unknown token; **410** token expired (past 23:59:59 on the order day)."
+                    }
+                },
+                {
+                    "name": "Update order",
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"fulfilment\": \"pickup\",\n    \"delivery_notes\": \"Leave at door\",\n    \"items\": [\n        { \"id\": 3, \"quantity\": 1 }\n    ]\n}"
+                        },
+                        "url": "{{base_url}}/orders/{{order_token}}",
+                        "description": "Edit before cutoff. All fields `sometimes`; applied fields are `fulfilment`, `delivery_notes`, `items` (item ids validated against the order's own menu). Switching to `delivery` does **not** re-validate suburb — validate client-side against `GET /settings`. Errors: 422 (validation / off-menu / after cutoff with `ordering`), 410 expired.\n\nKnown gap: request still *accepts* `name`/`address`/`suburb` (validated then silently ignored); `email`/`phone` are rejected."
+                    }
+                },
+                {
+                    "name": "Cancel order",
+                    "request": {
+                        "method": "DELETE",
+                        "url": "{{base_url}}/orders/{{order_token}}",
+                        "description": "Cancel before cutoff → **200** with the order object (`status: \"cancelled\"`). After cutoff only staff may cancel (not exposed here). **410** expired, **404** unknown."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Customer (Clerk)",
+            "description": "Signed-in customer endpoints. Auth is a Clerk JWT (`Authorization: Bearer {{clerk_token}}`), verified against Clerk's JWKS (issuer, `azp` allow-list, expiry) and must carry `email_verified: true`. The verified email maps to the `customers` row. Missing/invalid token → **401**. Requires `CLERK_ISSUER` and `CLERK_ALLOWED_ORIGINS` in `.env`.",
+            "item": [
+                {
+                    "name": "Get my account",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{clerk_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "url": "{{base_url}}/my-account",
+                        "description": "The signed-in customer. **Creates** the row from the JWT name + email on first request. Returns `name`, `email`, `phone`, `address`, `suburb`."
+                    }
+                },
+                {
+                    "name": "Update my account",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{clerk_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"name\": \"Amol W\",\n    \"phone\": \"0211234567\",\n    \"address\": \"12 Cuba Street\",\n    \"suburb\": \"Te Aro\"\n}"
+                        },
+                        "url": "{{base_url}}/my-account",
+                        "description": "Update contact/delivery details. All fields optional (`name`, `phone`, `address`, `suburb`). `suburb` must be in the delivery list; `phone` unique. Invalid → **422**."
+                    }
+                },
+                {
+                    "name": "Get my orders",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{clerk_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "GET",
+                        "url": "{{base_url}}/my-orders",
+                        "description": "Every order on the email-matched customer row — guest history included — newest first. No row yet → `data: []` (never creates one)."
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Admin",
+            "description": "Token-authenticated admin SPA API under `/api/v1/admin`. Sanctum personal access tokens; staff email allowlist (`ADMIN_EMAILS`). All money is integer **cents**, both directions. Lists support `?filter[...]=`, `?sort=` (`-` prefix = descending), `?page=`, `?per_page=` (default 15). All resources include `created_at`/`updated_at`.\n\nRun **Login** first — its test script saves `data.token` to `{{admin_token}}`.",
+            "item": [
+                {
+                    "name": "Login",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "// Save the Sanctum token for the other Admin requests.",
+                                    "var body = pm.response.json();",
+                                    "if (body.data && body.data.token) {",
+                                    "    pm.collectionVariables.set('admin_token', body.data.token);",
+                                    "}"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+                        },
+                        "url": "{{base_url}}/admin/login",
+                        "description": "Email + password → `{ data: { token: \"1|...\", user: { name, email } } }`. Account must be on the staff allowlist. Rate limited 10/min (429)."
+                    }
+                },
+                {
+                    "name": "Logout",
+                    "request": {
+                        "auth": {
+                            "type": "bearer",
+                            "bearer": [
+                                {
+                                    "key": "token",
+                                    "value": "{{admin_token}}",
+                                    "type": "string"
+                                }
+                            ]
+                        },
+                        "method": "POST",
+                        "url": "{{base_url}}/admin/logout",
+                        "description": "Deletes the current Sanctum token."
+                    }
+                },
+                {
+                    "name": "Orders",
+                    "item": [
+                        {
+                            "name": "List orders",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": {
+                                    "raw": "{{base_url}}/admin/orders?filter[status]=confirmed&sort=-placed_at&page=1&per_page=15",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["admin", "orders"],
+                                    "query": [
+                                        {
+                                            "key": "filter[status]",
+                                            "value": "confirmed",
+                                            "description": "Filters: status, fulfilment, customer_id, menu_id"
+                                        },
+                                        {
+                                            "key": "sort",
+                                            "value": "-placed_at",
+                                            "description": "Sorts: placed_at, total. Default -placed_at"
+                                        },
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "per_page",
+                                            "value": "15",
+                                            "description": "Default 15"
+                                        }
+                                    ]
+                                },
+                                "description": "Paginated list (`data: { resource, links, meta }`); includes customer + payments (with `paid` sum)."
+                            }
+                        },
+                        {
+                            "name": "Get order",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": "{{base_url}}/admin/orders/1",
+                                "description": "Single order; includes items, payments, customer."
+                            }
+                        },
+                        {
+                            "name": "Update order status",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"status\": \"ready_for_pickup\"\n}"
+                                },
+                                "url": "{{base_url}}/admin/orders/1",
+                                "description": "Status only. Valid: `confirmed`, `ready_for_pickup`, `out_for_delivery`, `completed`, `cancelled`. 422 if cancelling an order with a recorded paid sum > 0 (payments are immutable — ADR 0002). Order contents are immutable. Writes an audit entry (`status_changed`, actor `staff`)."
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Payments",
+                    "item": [
+                        {
+                            "name": "List payments",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": {
+                                    "raw": "{{base_url}}/admin/payments?filter[order_id]=1&sort=-paid_at",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["admin", "payments"],
+                                    "query": [
+                                        {
+                                            "key": "filter[order_id]",
+                                            "value": "1",
+                                            "description": "Filters: method, order_id, customer_id"
+                                        },
+                                        {
+                                            "key": "sort",
+                                            "value": "-paid_at",
+                                            "description": "Sorts: paid_at, amount. Default -paid_at"
+                                        }
+                                    ]
+                                },
+                                "description": "Paginated payment list."
+                            }
+                        },
+                        {
+                            "name": "Record payment",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"order_id\": 1,\n    \"amount\": 2000\n}"
+                                },
+                                "url": "{{base_url}}/admin/payments",
+                                "description": "Records a manual cash payment. `amount` in **cents**. 422 if the amount exceeds the order's outstanding balance. Payments are immutable — no edit/refund/delete/fail endpoints (ADR 0002)."
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Customers",
+                    "item": [
+                        {
+                            "name": "List customers",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": {
+                                    "raw": "{{base_url}}/admin/customers?filter[suburb]=Te%20Aro&sort=name",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["admin", "customers"],
+                                    "query": [
+                                        {
+                                            "key": "filter[suburb]",
+                                            "value": "Te Aro",
+                                            "description": "Filters: name, email, suburb"
+                                        },
+                                        {
+                                            "key": "sort",
+                                            "value": "name",
+                                            "description": "Sort: name"
+                                        }
+                                    ]
+                                },
+                                "description": "Paginated customer list; includes `order_count`."
+                            }
+                        },
+                        {
+                            "name": "Get customer",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": "{{base_url}}/admin/customers/1",
+                                "description": "Single customer; includes orders (with payments), newest first."
+                            }
+                        },
+                        {
+                            "name": "Update customer",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"name\": \"Amol W\",\n    \"email\": \"amol@example.com\",\n    \"phone\": \"0211234567\",\n    \"address\": \"12 Cuba Street\",\n    \"suburb\": \"Te Aro\"\n}"
+                                },
+                                "url": "{{base_url}}/admin/customers/1",
+                                "description": "Any of `name`, `email`, `phone`, `address`, `suburb`. Email lowercased, phone normalized to digits. No create/delete/blocking."
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Menus",
+                    "item": [
+                        {
+                            "name": "List menus",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": {
+                                    "raw": "{{base_url}}/admin/menus?filter[menu_date]=2026-11-19&sort=-menu_date",
+                                    "host": ["{{base_url}}"],
+                                    "path": ["admin", "menus"],
+                                    "query": [
+                                        {
+                                            "key": "filter[menu_date]",
+                                            "value": "2026-11-19",
+                                            "description": "Filter: menu_date"
+                                        },
+                                        {
+                                            "key": "sort",
+                                            "value": "-menu_date",
+                                            "description": "Sort: menu_date. Default -menu_date"
+                                        }
+                                    ]
+                                },
+                                "description": "Paginated menu list; includes items."
+                            }
+                        },
+                        {
+                            "name": "Create menu",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"menu_date\": \"2026-11-20\",\n    \"cutoff_time\": \"11:00\"\n}"
+                                },
+                                "url": "{{base_url}}/admin/menus",
+                                "description": "`menu_date` (YYYY-MM-DD, unique per date), optional `cutoff_time` (HH:MM)."
+                            }
+                        },
+                        {
+                            "name": "Get menu",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": "{{base_url}}/admin/menus/1",
+                                "description": "Single menu; includes items."
+                            }
+                        },
+                        {
+                            "name": "Update menu",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"publish\": true\n}"
+                                },
+                                "url": "{{base_url}}/admin/menus/1",
+                                "description": "`menu_date`, `cutoff_time`, and/or `publish: true/false` (sets/clears `published_at`)."
+                            }
+                        },
+                        {
+                            "name": "Delete menu",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "DELETE",
+                                "url": "{{base_url}}/admin/menus/1",
+                                "description": "Deletes the menu and its items. **409 Conflict** if any order references the menu."
+                            }
+                        },
+                        {
+                            "name": "Add menu item",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"type\": \"main\",\n    \"name\": \"Butter Chicken\",\n    \"description\": \"With rice and naan\",\n    \"price\": 1600,\n    \"sort_order\": 1\n}"
+                                },
+                                "url": "{{base_url}}/admin/menus/1/items",
+                                "description": "`type`: `main` | `extra`; `price` in **cents**; `description` and `sort_order` optional."
+                            }
+                        },
+                        {
+                            "name": "Update menu item",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "PATCH",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"price\": 1700\n}"
+                                },
+                                "url": "{{base_url}}/admin/menus/1/items/12",
+                                "description": "Same fields as create, all optional."
+                            }
+                        },
+                        {
+                            "name": "Delete menu item",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "DELETE",
+                                "url": "{{base_url}}/admin/menus/1/items/12",
+                                "description": "Safe for existing orders — `order_items` snapshot `unit_price`."
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Settings",
+                    "item": [
+                        {
+                            "name": "Get settings",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "GET",
+                                "url": "{{base_url}}/admin/settings",
+                                "description": "Same shape as public `GET /settings`."
+                            }
+                        },
+                        {
+                            "name": "Update settings",
+                            "request": {
+                                "auth": {
+                                    "type": "bearer",
+                                    "bearer": [
+                                        {
+                                            "key": "token",
+                                            "value": "{{admin_token}}",
+                                            "type": "string"
+                                        }
+                                    ]
+                                },
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"delivery_suburbs\": [\n        \"Te Aro\",\n        \"Kelburn\"\n    ],\n    \"order_cutoff_time\": \"11:00\",\n    \"pickup_start_time\": \"17:00\",\n    \"pickup_end_time\": \"19:00\",\n    \"store_phone\": \"021 123 4567\",\n    \"store_phone_alternate\": \"04 555 1234\",\n    \"store_email\": \"hello@thetiffinclub.co.nz\",\n    \"pickup_address\": \"123 Cuba Street, Te Aro, Wellington\",\n    \"pickup_map_url\": \"https://maps.example.com/...\"\n}"
+                                },
+                                "url": "{{base_url}}/admin/settings",
+                                "description": "Partial update of any known key: `delivery_suburbs` (array), `order_cutoff_time`, `pickup_start_time`, `pickup_end_time` (`HH:MM`), `store_phone`, `store_phone_alternate`, `store_email` (email), `pickup_address`, `pickup_map_url` (url). Unknown keys rejected."
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
