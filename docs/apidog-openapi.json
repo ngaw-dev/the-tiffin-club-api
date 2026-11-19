@@ -639,7 +639,7 @@
                                     "password": { "type": "string", "format": "password" }
                                 }
                             },
-                            "example": { "email": "admin@thetiffinclub.co.nz", "password": "password" }
+                            "example": { "email": "staff@admin.com", "password": "password" }
                         }
                     }
                 },
@@ -653,7 +653,7 @@
                                     "message": "Logged in.",
                                     "data": {
                                         "token": "1|abcdef1234567890",
-                                        "user": { "name": "Amol W", "email": "admin@thetiffinclub.co.nz" }
+                                        "user": { "name": "Amol W", "email": "staff@admin.com" }
                                     }
                                 }
                             }
