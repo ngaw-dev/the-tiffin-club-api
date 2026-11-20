@@ -20,16 +20,17 @@ class GlobalSettingController extends Controller
     {
         $settings = GlobalSetting::allSettings();
 
+        // Unset settings simply have no row, so every key is null-coalesced.
         return $this->successResponse([
             'delivery_suburbs' => json_decode($settings['delivery_suburbs'] ?? '[]', true),
-            'order_cutoff_time' => $settings['order_cutoff_time'],
-            'pickup_start_time' => $settings['pickup_start_time'],
-            'pickup_end_time' => $settings['pickup_end_time'],
-            'store_phone' => $settings['store_phone'],
-            'store_phone_alternate' => $settings['store_phone_alternate'],
-            'store_email' => $settings['store_email'],
-            'pickup_address' => $settings['pickup_address'],
-            'pickup_map_url' => $settings['pickup_map_url'],
+            'order_cutoff_time' => $settings['order_cutoff_time'] ?? null,
+            'pickup_start_time' => $settings['pickup_start_time'] ?? null,
+            'pickup_end_time' => $settings['pickup_end_time'] ?? null,
+            'store_phone' => $settings['store_phone'] ?? null,
+            'store_phone_alternate' => $settings['store_phone_alternate'] ?? null,
+            'store_email' => $settings['store_email'] ?? null,
+            'pickup_address' => $settings['pickup_address'] ?? null,
+            'pickup_map_url' => $settings['pickup_map_url'] ?? null,
         ], 'Store settings');
     }
 }

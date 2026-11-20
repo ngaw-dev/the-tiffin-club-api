@@ -15,13 +15,16 @@ use App\Http\Controllers\Api\OrderLookupController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
-    Route::get('/menu/today', [PublicMenuController::class, 'today'])->name('menu.today');
-    Route::get('/settings', [PublicGlobalSettingController::class, 'index'])->name('settings.index');
-    Route::post('/orders', [PublicOrderController::class, 'store'])->name('orders.store');
-    Route::post('/orders/lookup', OrderLookupController::class)->name('orders.lookup');
-    Route::get('/orders/{token}', [PublicOrderController::class, 'show'])->name('orders.show');
-    Route::patch('/orders/{token}', [PublicOrderController::class, 'update'])->name('orders.update');
-    Route::delete('/orders/{token}', [PublicOrderController::class, 'destroy'])->name('orders.destroy');
+    // Public customer endpoints are rate limited per IP; admin routes stay on the looser api limiter.
+    Route::middleware('throttle:customer')->group(function () {
+        Route::get('/menu/today', [PublicMenuController::class, 'today'])->name('menu.today');
+        Route::get('/settings', [PublicGlobalSettingController::class, 'index'])->name('settings.index');
+        Route::post('/orders', [PublicOrderController::class, 'store'])->name('orders.store');
+        Route::post('/orders/lookup', OrderLookupController::class)->name('orders.lookup');
+        Route::get('/orders/{token}', [PublicOrderController::class, 'show'])->name('orders.show');
+        Route::patch('/orders/{token}', [PublicOrderController::class, 'update'])->name('orders.update');
+        Route::delete('/orders/{token}', [PublicOrderController::class, 'destroy'])->name('orders.destroy');
+    });
 
     Route::middleware('clerk.auth')->group(function () {
         Route::get('/my-account', [MyAccountController::class, 'show'])->name('my-account.show');

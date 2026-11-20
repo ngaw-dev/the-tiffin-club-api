@@ -32,5 +32,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(1600)->by($request->ip());
         });
+
+        // Public customer endpoints face the internet unauthenticated, so
+        // they get a far tighter per-IP budget than the staff API.
+        RateLimiter::for('customer', function (Request $request) {
+            return Limit::perMinute(60)->by($request->ip());
+        });
     }
 }
