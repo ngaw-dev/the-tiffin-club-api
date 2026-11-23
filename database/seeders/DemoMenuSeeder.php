@@ -22,11 +22,13 @@ class DemoMenuSeeder extends Seeder
                 'main' => 'Butter Chicken with Jeera Rice',
                 'description' => 'Slow-cooked butter chicken served with cumin rice and a side of raita.',
                 'price' => 1600,
+                'image' => 'menu-items/butter-chicken.jpg',
             ],
             [
                 'main' => 'Paneer Tikka Masala with Naan',
                 'description' => 'Char-grilled paneer in a creamy tomato masala with fresh butter naan.',
                 'price' => 1500,
+                'image' => 'menu-items/paneer-tikka-masala.jpg',
             ],
             [
                 'main' => 'Dal Makhani with Basmati Rice',
@@ -37,11 +39,13 @@ class DemoMenuSeeder extends Seeder
                 'main' => 'Chole Bhature',
                 'description' => 'Spiced chickpea curry with fluffy fried bhature and pickled onion.',
                 'price' => 1400,
+                'image' => 'menu-items/chole-bhature.jpg',
             ],
             [
                 'main' => 'Chicken Biryani with Raita',
                 'description' => 'Dum-style chicken biryani layered with saffron rice and served with raita.',
                 'price' => 1700,
+                'image' => 'menu-items/chicken-biryani.jpg',
             ],
             [
                 'main' => 'Palak Paneer with Roti',
@@ -66,13 +70,27 @@ class DemoMenuSeeder extends Seeder
                 'type' => MenuItem::TYPE_MAIN,
                 'name' => $day['main'],
                 'description' => $day['description'],
+                'image_path' => $day['image'] ?? null,
                 'price' => $day['price'],
                 'sort_order' => 1,
             ]);
 
-            MenuItem::create(['menu_id' => $menu->id, 'type' => 'extra', 'name' => 'Garlic Naan', 'price' => 400, 'sort_order' => 2]);
-            MenuItem::create(['menu_id' => $menu->id, 'type' => 'extra', 'name' => 'Papadum', 'price' => 200, 'sort_order' => 3]);
-            MenuItem::create(['menu_id' => $menu->id, 'type' => 'extra', 'name' => 'Gulab Jamun', 'price' => 500, 'sort_order' => 4]);
+            // Demo extras: most days have plain items, some carry images.
+            $extras = [
+                ['name' => 'Garlic Naan', 'price' => 400, 'sort_order' => 2, 'image' => 'menu-items/garlic-naan.jpg'],
+                ['name' => 'Papadum', 'price' => 200, 'sort_order' => 3],
+                ['name' => 'Gulab Jamun', 'price' => 500, 'sort_order' => 4, 'image' => 'menu-items/gulab-jamun.jpg'],
+            ];
+            foreach ($extras as $extra) {
+                MenuItem::create([
+                    'menu_id' => $menu->id,
+                    'type' => MenuItem::TYPE_EXTRA,
+                    'name' => $extra['name'],
+                    'image_path' => $extra['image'] ?? null,
+                    'price' => $extra['price'],
+                    'sort_order' => $extra['sort_order'],
+                ]);
+            }
         }
     }
 }
