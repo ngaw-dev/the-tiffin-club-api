@@ -16,6 +16,7 @@ class AdminMenuItemResource extends JsonResource
             'type' => $this->type,
             'name' => $this->name,
             'description' => $this->description,
+            'image_url' => $this->image_path ? asset('storage/'.$this->image_path) : null,
             'price' => $this->price,
             'sort_order' => $this->sort_order,
             'created_at' => $this->created_at?->toIso8601String(),

@@ -15,6 +15,7 @@ class MenuItemResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
+            'image_url' => $this->image_path ? asset('storage/'.$this->image_path) : null,
             'price' => $this->price,
         ];
     }

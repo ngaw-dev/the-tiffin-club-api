@@ -8,6 +8,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -35,6 +36,12 @@ class ItemsRelationManager extends RelationManager
                     ->maxLength(255),
                 Textarea::make('description')
                     ->columnSpanFull(),
+                FileUpload::make('image_path')
+                    ->label('Image')
+                    ->image()
+                    ->imageEditor()
+                    ->disk('public')
+                    ->directory('menu-items'),
                 TextInput::make('price')
                     ->label('Price (cents)')
                     ->numeric()

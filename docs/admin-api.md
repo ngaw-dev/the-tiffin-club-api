@@ -54,7 +54,7 @@ Refunds / marking payments failed are not supported.
 | GET | `/menus/{id}` | Includes items. |
 | PATCH | `/menus/{id}` | `menu_date`, `cutoff_time`, and/or `publish: true/false` (sets/clears `published_at`). |
 | DELETE | `/menus/{id}` | Deletes the menu and its items. **409 Conflict** if any order references the menu. |
-| POST | `/menus/{id}/items` | `{ type, name, description?, price, sort_order? }` — `type`: `main` \| `extra`; `price` in cents. |
+| POST | `/menus/{id}/items` | `{ type, name, description?, image_url?, price, sort_order? }` — `type`: `main` \| `extra`; `price` in cents. `image_url` is read-only (set via Filament upload); always null over the API. |
 | PATCH | `/menus/{id}/items/{itemId}` | Same fields, all optional. |
 | DELETE | `/menus/{id}/items/{itemId}` | Safe for existing orders — `order_items` snapshot `unit_price`. |
 
