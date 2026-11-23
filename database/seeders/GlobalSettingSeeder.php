@@ -18,10 +18,14 @@ class GlobalSettingSeeder extends Seeder
         $defaults = [
             'delivery_suburbs' => config('tiffin.delivery_suburbs'),
             'order_cutoff_time' => config('tiffin.default_cutoff_time'),
+            'opens_at' => config('tiffin.store_opens_time'),
             'store_phone' => '021 123 4567',
             'store_phone_alternate' => '04 555 1234',
             'store_email' => 'hello@thetiffinclub.co.nz',
             'pickup_address' => '123 Cuba Street, Te Aro, Wellington',
+            'pickup_start_time' => '17:00',
+            'pickup_end_time' => '19:00',
+            'pickup_map_url' => 'https://maps.example.com/...',
         ];
 
         foreach ($defaults as $key => $value) {

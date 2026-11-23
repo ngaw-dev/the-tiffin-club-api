@@ -25,7 +25,9 @@ class OrderingWindowService
 
         $day = Carbon::parse($menu->menu_date->toDateString(), $tz);
 
-        $baseOpen = $day->copy()->setTimeFromTimeString(self::OPENS_AT);
+        $baseOpen = $day->copy()->setTimeFromTimeString(
+            GlobalSetting::get('opens_at')?->format('H:i') ?? self::OPENS_AT
+        );
         $publishedAt = Carbon::parse($menu->published_at)->setTimezone($tz);
         $opensAt = $publishedAt->greaterThan($baseOpen) ? $publishedAt : $baseOpen;
 

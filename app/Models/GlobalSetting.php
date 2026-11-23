@@ -17,6 +17,7 @@ class GlobalSetting extends Model
     public const KEYS = [
         'delivery_suburbs' => 'array',
         'order_cutoff_time' => 'time',
+        'opens_at' => 'time',
         'pickup_start_time' => 'time',
         'pickup_end_time' => 'time',
         'store_phone' => 'string',
